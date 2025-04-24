@@ -254,7 +254,7 @@ class BlockGameApp:
             imageSizeY = 300
 
         elif self.blocknumber == 4:
-            self.sample_image_path = "image\Germany.png"
+            self.sample_image_path = "image/Germany.png"
             imageSizeX = 300 
             imageSizeY = 300
 
