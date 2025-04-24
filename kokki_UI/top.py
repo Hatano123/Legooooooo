@@ -28,7 +28,7 @@ class BlockGameApp:
             root.destroy()
 
         # Load YOLO model
-        self.model = YOLO('bestbest.pt')
+        self.model = YOLO('best.pt')
 
         # Output directory for processed images
         self.output_dir = "output_images"
@@ -291,6 +291,14 @@ class BlockGameApp:
         # Message area
         self.message_id = self.canvas.create_text(400, 500, text="", font=("Helvetica", 14), fill="red")
 
+    def detail_screen(self):
+        self.current_screen = "detail"
+        self.canvas.create_text(400, 500, text="くにのせつめいだよ", font=("Helvetica", 14), fill="black")
+
+        if(self.blocknumber == 0):
+            self.canvas.create_image(300,400,"\image\日本街並み.jpg")
+
+
     def mouse_event(self, event):
         x, y = event.x, event.y
 
@@ -361,6 +369,8 @@ class BlockGameApp:
                         tome_car ="gray25"
 
                     detected = True  # 検出成功
+                    self.current_screen == "detail"
+                    
 
                     # 検出されたオブジェクトを切り抜き
                     
@@ -383,8 +393,12 @@ class BlockGameApp:
                         self.captured_images[object_type] = output_path
                     # トリミング後の画像パスを保存
                         self.captured_images[object_type] = trimmed_output_path
+                        
+                        self.detail_screen()
+                        
                     else:
                         print(f"Trimming failed for {output_path}")
+
                 if detected:
                     self.draw_main_screen()
                 else:#物体は検知されているが、対象の物体がないor精度が低すぎる
