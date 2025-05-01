@@ -92,8 +92,25 @@ class BlockGameApp:
         self.canvas.delete("all")
         self.current_screen = "next"
 
+<<<<<<< Updated upstream
         # Background color for next screen
         self.canvas.create_rectangle(0, 0, 800, 600, fill="lightgreen", outline="")
+=======
+        # 背景画像として Sam.jpg を表示
+        try:
+            bg_image = Image.open("sample.jpg")
+            bg_image = bg_image.resize((800, 600))  # キャンバスサイズに合わせてリサイズ
+            bg_tk = ImageTk.PhotoImage(bg_image)
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=bg_tk)
+            self.bg_next_screen_tk = bg_tk  # 参照を保持
+        except Exception as e:
+            print(f"Error loading Sam.jpg: {e}")
+        self.canvas.create_text(400, 30, text="左のおてほんと同じものをつくってね", font=font_subject, fill="black")
+        if self.blocknumber == 0:
+            self.canvas.create_text(240, 80, text="まえからとってね！", font=font_subject, fill="black")
+        elif self.blocknumber == 1:
+            self.canvas.create_text(240, 80, text="よこむきにとってね！", font=font_subject, fill="black")
+>>>>>>> Stashed changes
 
         # Display camera feed on the right
         if self.last_frame is not None:
@@ -153,37 +170,63 @@ class BlockGameApp:
                 self.capture_shutter()
             elif 50 <= x <= 200 and 500 <= y <= 550:
                 self.draw_main_screen()  # メインページに戻る
-
+  
     def capture_shutter(self):
+<<<<<<< Updated upstream
+=======
+        """
+        カメラからキャプチャした画像を保存し、物体検出を行い、
+        検出された物体の背景を削除して透過部分をトリミングします。
+        """
+        global tome_home, tome_car
+>>>>>>> Stashed changes
         if self.last_frame is not None:
+            # キャプチャした画像を保存
             filename = f"captured_image_{self.blocknumber}.jpg"
             cv2.imwrite(filename, self.last_frame)
             print(f"Image saved: {filename}")
 
-            # YOLOモデルの適用
+            # YOLOモデルを適用
             results = self.model(filename)
 
             # 信頼値のしきい値
+<<<<<<< Updated upstream
             confidence_threshold = 0.5  # ここでしきい値を設定
 
             if results and len(results[0].boxes) > 0:
                 detected = False  # 検出結果の確認用
+=======
+            confidence_threshold = 0.3
+
+            if results and len(results[0].boxes) > 0:
+                detected = False  # 検出結果があるか確認
+                self.canvas.itemconfig(self.message_id, text="すこしまってね")
+>>>>>>> Stashed changes
 
                 for i, box in enumerate(results[0].boxes.xyxy):
                     confidence = results[0].boxes.conf[i]  # 信頼値を取得
                     if confidence < confidence_threshold:
-                        continue  # 信頼値がしきい値以下の場合はスキップ
+                        continue  # 信頼値が低い場合はスキップ
 
                     x1, y1, x2, y2 = map(int, box.tolist())
                     label_index = int(results[0].boxes.cls[i])  # クラスIDを取得
                     object_type = self.model.names[label_index]  # クラス名を取得
                     print(f"Detected object: {object_type} with confidence: {confidence}")
 
-                    # ブロックナンバーに対応するオブジェクトかどうかを確認
+                    # 対象オブジェクトの確認
                     if (self.blocknumber == 0 and object_type != "house") or \
-                    (self.blocknumber == 1 and object_type != "cars"):
-                        continue  # 対応しない場合はスキップ
+                            (self.blocknumber == 1 and object_type != "cars"):
+                        continue
 
+<<<<<<< Updated upstream
+=======
+                    # ボタンの透過度を変更
+                    if self.blocknumber == 0 and object_type == "house":
+                        tome_home = "gray25"
+                    if self.blocknumber == 1 and object_type == "cars":
+                        tome_car = "gray25"
+
+>>>>>>> Stashed changes
                     detected = True  # 検出成功
 
                     # 検出されたオブジェクトを切り抜き
@@ -198,6 +241,7 @@ class BlockGameApp:
                     with open(output_path, "wb") as output_file:
                         output_file.write(output_data)
 
+<<<<<<< Updated upstream
                     # 検出結果を保存
                     self.captured_images[object_type] = output_path
 
@@ -205,8 +249,63 @@ class BlockGameApp:
                     self.draw_main_screen()
                 else:
                     self.canvas.itemconfig(self.message_id, text="指定されたものを作ってください！")
+=======
+                    # トリミング後の画像パス
+                    trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{object_type}_{i}.png")
+
+                    # 透過部分をトリミング
+                    if self.trim_transparent_area(output_path, trimmed_output_path):
+                        # トリミング後の画像パスを保存
+                        self.captured_images[object_type] = trimmed_output_path
+                    else:
+                        print(f"Trimming failed for {output_path}")
+
+                if detected:
+                    self.draw_main_screen()
+                else:
+                    self.canvas.itemconfig(self.message_id, text="あとちょっと！")
+            else:
+                self.canvas.itemconfig(self.message_id, text="みつからないよ～")
+
+    def trim_transparent_area(self, input_path, output_path):
+        """
+        PNG画像の透過部分をトリミングし、物体ができるだけ大きくなるように画像の端に配置します。
+        
+        Args:
+            input_path (str): トリミング対象の画像パス。
+            output_path (str): トリミング後の画像を保存するパス。
+            
+        Returns:
+            bool: トリミングが成功した場合はTrue、失敗した場合はFalse。
+        """
+        try:
+            # 入力画像を開く
+            img = Image.open(input_path).convert("RGBA")
+            
+            # アルファチャンネルを使って非透過部分の範囲を取得
+            bbox = img.getbbox()
+
+            if bbox:
+                # 物体部分が画像の端に触れるように画像を拡大
+                img_cropped = img.crop(bbox)
+                
+                # 新しい画像サイズを設定（物体が画像端に触れるように）
+                img_width, img_height = img_cropped.size
+                new_img = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 0))
+
+                # 物体を新しい画像内で最適に配置
+                new_img.paste(img_cropped, (0,0), img_cropped)  # 物体を画像の左上に配置
+                
+                # 保存
+                new_img.save(output_path, "PNG")
+                print(f"Trimmed and enlarged image saved: {output_path}")
+                return True
+>>>>>>> Stashed changes
             else:
                 self.canvas.itemconfig(self.message_id, text="物体が検知されません！")
+
+
+
 
     def update_frame(self):
         if self.capture.isOpened():
