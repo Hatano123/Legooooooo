@@ -1,499 +1,586 @@
 import tkinter as tk
 from tkinter import messagebox, font
-from PIL import Image, ImageTk, ImageFont
+from PIL import Image, ImageTk # Removed ImageFont as it wasn't used
 import cv2
 import numpy as np
 import os
 from ultralytics import YOLO
 from rembg import remove
-
-
+import time
+import io # Needed for processing rembg output
 
 class BlockGameApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Block Game")
+        self.root.title("Block Game - Flag Edition")
+
+        # --- Configuration ---
+        self.flag_map = {
+            0: "Japan", 1: "Sweden", 2: "Estonia",
+            3: "Oranda", 4: "Germany", 5: "Denmark"
+        }
+        # Stores the PATH to the final processed image, or None
+        self.captured_images = {flag: None for flag in self.flag_map.values()}
 
         # Initial setup
         self.current_screen = "main"
-        self.blocknumber = None
-        self.sample_image_path = None
+        self.blocknumber = None # Index (0-5) of the flag being processed
         self.last_frame = None
         self.frame_count = 0
-        self.captured_images = {"Japan": None, "Sweden": None, "Estonia": None, "Holland": None, "Germany": None, "Denmark": None}  # Store captured images for house and cars
-        self.capture = cv2.VideoCapture(1)
-
-        if not self.capture.isOpened():
-            messagebox.showerror("Error", "Cannot access the camera")
-            root.destroy()
-
-        # Load YOLO model
-        self.model = YOLO('best.pt')
 
         # Output directory for processed images
         self.output_dir = "output_images"
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Main canvas
+        # --- Camera Setup ---
+        self.capture = cv2.VideoCapture(0)
+        if not self.capture.isOpened():
+            messagebox.showerror("Error", "Cannot access the camera")
+            root.destroy()
+            return
+
+        # --- YOLO Model ---
+        try:
+            self.model = YOLO('Rebest.pt') # Ensure this model has the correct classes
+            print("Attempting to load model 'Rebest.pt'...")
+            # Verify class names match self.flag_map values AFTER model loads
+            model_classes_dict = self.model.names
+            model_classes_set = set(model_classes_dict.values())
+            expected_classes_set = set(self.flag_map.values())
+            print(f"Model Classes Found: {model_classes_set}")
+            print(f"Expected Classes: {expected_classes_set}")
+            if not expected_classes_set.issubset(model_classes_set):
+                 missing = expected_classes_set - model_classes_set
+                 extra = model_classes_set - expected_classes_set
+                 msg = f"Model class mismatch!\nMissing: {missing}\nUnexpected: {extra}\nCheck model and flag_map."
+                 messagebox.showwarning("Model Warning", msg)
+                 print(f"WARNING: {msg}") # Also print to console
+
+        except Exception as e:
+            messagebox.showerror("YOLO Error", f"Failed to load YOLO model 'Rebest.pt': {e}")
+            if self.capture.isOpened(): self.capture.release()
+            root.destroy()
+            return
+
+        # --- UI Setup ---
         self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
         self.canvas.pack()
 
-        # Load background image
-        try:
-            self.bg_image = Image.open("image/background.jpg")
-            self.bg_image = self.bg_image.resize((800, 600))
-            self.bg_tk = ImageTk.PhotoImage(self.bg_image)
-        except Exception as e:
-            print(f"Background image error: {e}")
-            self.bg_tk = None
+        self.bg_tk = None # Placeholder for background PhotoImage
+        self.bg_canvas_id = None # ID of the background image on the canvas
+
+        # Store PhotoImage references for captured flags to prevent garbage collection
+        self.flag_photo_references = {}
 
         # Draw the initial screen
         self.draw_main_screen()
 
-        # Mouse click event
+        # --- Event Binding ---
         self.canvas.bind("<Button-1>", self.mouse_event)
 
-        # Frame update
+        # Start frame update loop
         self.update_frame()
 
     def update_background_image(self):
-    
-        if self.captured_images["Japan"] and self.captured_images["Sweden"] and self.captured_images["Italy"] and self.captured_images["Russia"] and self.captured_images["Germany"] and self.captured_images["Denmark"]:
-            background_path = "image/house_car_less.jpg"
-        elif self.captured_images["Japan"]:
-            background_path = "image/Japan_less.jpg"
-        elif self.captured_images["Sweden"]:
-            background_path = "image/Sweden_less.jpg"
-        elif self.captured_images["Estonia"]:
-            background_path = "image/Estonia_less.jpg"
-        elif self.captured_images["Holland"]:
-            background_path = "image/Holland_less.jpg"
-        elif self.captured_images["Germany"]:
-            background_path = "image/Germany_less.jpg"
-        elif self.captured_images["Denmark"]:
-            background_path = "image/Denmark_less.jpg"
-        else:
-            background_path = "image/background.jpg"  # 初期背景
+        """Updates the background based on captured flags."""
+        background_path = "image/background.jpg" # Default
+
+        # Check if any specific flag is captured to show its background
+        # Simple logic: show the background of the *last* captured flag type if available
+        last_captured_flag = None
+        for flag_name in self.flag_map.values():
+             if self.captured_images.get(flag_name):
+                 last_captured_flag = flag_name # Keep track of the latest found
+
+        if last_captured_flag:
+            potential_path = f"image/{last_captured_flag}.jpg"
+            if os.path.exists(potential_path):
+                background_path = potential_path
+            else:
+                print(f"Warning: Background image not found for {last_captured_flag} at {potential_path}")
+
+        # Optional: Check if ALL flags are captured for a special background
+        # all_captured = all(self.captured_images.values())
+        # if all_captured and os.path.exists("image/all_flags_complete.jpg"):
+        #     background_path = "image/all_flags_complete.jpg"
 
         try:
+            if not os.path.exists(background_path):
+                print(f"ERROR: Background image file not found: {background_path}")
+                # Fallback to a solid color if the default is missing
+                self.canvas.config(bg="lightgrey")
+                if self.bg_canvas_id: self.canvas.delete(self.bg_canvas_id) # Remove old image if bg fails
+                self.bg_tk = None
+                return
+
             new_bg_image = Image.open(background_path)
-            new_bg_image = new_bg_image.resize((800, 600))
+            new_bg_image = new_bg_image.resize((800, 600), Image.Resampling.LANCZOS)
             self.bg_tk = ImageTk.PhotoImage(new_bg_image)
+
+            if self.bg_canvas_id and self.canvas.winfo_exists(): # Check if canvas item exists
+                 # Check if the canvas item ID is still valid before configuring
+                 try:
+                    self.canvas.itemconfig(self.bg_canvas_id, image=self.bg_tk)
+                 except tk.TclError: # Handle case where canvas item might have been deleted unexpectedly
+                    print("Warning: Background canvas item not found, creating new one.")
+                    self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+            else: # Create it if it doesn't exist or canvas was cleared
+                 self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+
+            self.canvas.lower(self.bg_canvas_id) # Ensure background is behind other elements
+
         except Exception as e:
-            print(f"Error updating background image: {e}")
+            print(f"Error updating background image from {background_path}: {e}")
+            # Fallback in case of PIL errors etc.
+            self.canvas.config(bg="lightgrey")
+            if self.bg_canvas_id: self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
 
-
     def draw_main_screen(self):
-        # 基準情報
-        self.update_background_image()
-        self.canvas.delete("all")
+        self.canvas.delete("all") # Clear previous screen elements
         self.current_screen = "main"
+        self.update_background_image() # Draw the background first
 
-        # Draw background image
-        if self.bg_tk:
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+        # --- Static Text ---
+        self.canvas.create_text(400, 30, text="Legoooooo Flags!", font=("Helvetica", 24, "bold"), fill="black")
+        self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
+        self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
 
-        # Text
-        self.canvas.create_text(400, 30, text="Legoooooo", font=("Helvetica", 24), fill="black")
-        self.canvas.create_text(420, 70, text="こっきをつくろう！", font=font_subject, fill="black")
-        self.canvas.create_text(420, 110, text="つくりたいくにをクリックしてね！", font=font_subject, fill="black")
+        # --- Dynamic Flag Buttons/Images ---
+        button_coords = {
+            "Japan":   (10, top_position1, 250, top_position2),   # Top Left
+            "Sweden":  (260, top_position1, 510, top_position2),  # Top Middle
+            "Estonia": (520, top_position1, 770, top_position2),  # Top Right
+            "Oranda": (10, bottom_position1, 250, bottom_position2), # Bottom Left
+            "Germany": (260, bottom_position1, 510, bottom_position2), # Bottom Middle
+            "Denmark": (520, bottom_position1, 770, bottom_position2)  # Bottom Right
+        }
+        button_texts = { # Japanese labels
+            "Japan": "にほん", "Sweden": "ｽｳｪｰﾃﾞﾝ", "Estonia": "ｴｽﾄﾆｱ",
+            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "ﾃﾞﾝﾏｰｸ"
+        }
+        text_y_offset_ratio = 0.4 # Place text roughly 40% down from the top of the button height
 
-        # Buttons and images
-        # Japan button
-        if self.captured_images["Japan"]:
-            # Display captured house image
-            Japan_image = Image.open(self.captured_images["Japan"])
-            Japan_image = Japan_image.resize((300, 350))  # Match button size
-            Japan_tk = ImageTk.PhotoImage(Japan_image)
-            self.canvas.create_image(100, 100, anchor=tk.CENTER, image=Japan_tk)
-            self.Japan_image_tk = Japan_tk  # Keep reference
+        # Clear previous photo references
+        self.flag_photo_references.clear()
 
-            # Transparent button overlay
-            self.canvas.create_rectangle(10, top_position1, 250, top_position2, fill="", outline="", tags="Japan")
+        for flag_name, coords in button_coords.items():
+            x1, y1, x2, y2 = coords
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            btn_width = x2 - x1
+            btn_height = y2 - y1
+            text_y = y1 + (btn_height * text_y_offset_ratio)
 
-        else:
-            # Draw house button (visible if no image yet)
-            self.canvas.create_rectangle(10, top_position1, 250, top_position2, fill="#90EE90", outline="black", stipple="gray50", tags="Japan")
-            self.canvas.create_text(130, 220, text="にほん", font=font_title2, fill="black")
+            captured_image_path = self.captured_images.get(flag_name)
 
-        # ロシア button 
-        if self.captured_images["Sweden"]:
-            # Display captured car image
-            Sweden_image = Image.open(self.captured_images["Sweden"])
-            Sweden_image = Sweden_image.resize((260, 120))  # Match button size
-            Sweden_tk = ImageTk.PhotoImage(Sweden_image)
-            self.canvas.create_image(370, 520, anchor=tk.CENTER, image=Sweden_tk)
-            self.Sweden_image_tk = Sweden_tk  # Keep reference
+            if captured_image_path and os.path.exists(captured_image_path):
+                # --- Display Captured Image ---
+                try:
+                    img = Image.open(captured_image_path)
 
-            # Transparent button overlay
-            self.canvas.create_rectangle(260, top_position1, 510, top_position2  , fill="", outline="", tags="Sweden")
+                    # Resize to fit button area while maintaining aspect ratio
+                    img.thumbnail((btn_width - 10, btn_height - 10), Image.Resampling.LANCZOS) # Use thumbnail with padding
 
-        else:
-            # Draw car button (visible if no image yet)
-            self.canvas.create_rectangle( 260, top_position1, 510, top_position2 , fill="#90EE90", outline="black", stipple="gray50", tags="Sweden")
-            self.canvas.create_text(385, 220, text="スウェーデン", font=font_title2, fill="black")
+                    img_tk = ImageTk.PhotoImage(img)
+                    # Store reference dynamically using the dictionary
+                    self.flag_photo_references[flag_name] = img_tk
 
-         # スウェーデン button
-        if self.captured_images["Estonia"]:
-            # Display captured car image
-            Estonia_image = Image.open(self.captured_images["Estonia"])
-            Estonia_image = Estonia_image.resize((260, 120))  # Match button size
-            Estonia_tk = ImageTk.PhotoImage(Estonia_image)
-            self.canvas.create_image(370, 520, anchor=tk.CENTER, image=Estonia_tk)
-            self.Estonia_image_tk = Estonia_tk  # Keep reference
+                    # Draw the image centered in the button area
+                    self.canvas.create_image(center_x, center_y, anchor=tk.CENTER, image=img_tk, tags=(flag_name, "flag_display"))
 
-            # Transparent button overlay
-            self.canvas.create_rectangle(520, top_position1, 770, top_position2, fill="", outline="", tags="Estonia")
+                    # Optional: Add a border around the captured image
+                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="green", width=2, tags=(flag_name, "flag_border")) # Green border for captured
 
-        else:
-            # Draw car button (visible if no image yet)
-            self.canvas.create_rectangle(520, top_position1, 770, top_position2 , fill="#90EE90", outline="black", stipple="gray50", tags="Estonia")
-            self.canvas.create_text(645, 220, text="エストニア", font=font_title2, fill="black")
+                except Exception as e:
+                    print(f"Error displaying captured image {flag_name} from {captured_image_path}: {e}")
+                    # Fallback to drawing the default button if image fails to load/display
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#FFCCCC", outline="black", stipple="gray25", tags=(flag_name, "button_fallback")) # Reddish fallback
+                    self.canvas.create_text(center_x, text_y, text=f"{button_texts[flag_name]}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
+            else:
+                # --- Draw Default Button ---
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default")) # Light blue default
+                self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
 
-         # イタリア button
-        if self.captured_images["Holland"]:
-            # Display captured car image
-            Holland_image = Image.open(self.captured_images["Holland"])
-            Holland_image = Holland_image.resize((260, 120))  # Match button size
-            Holland_tk = ImageTk.PhotoImage(Holland_image)
-            self.canvas.create_image(370, 520, anchor=tk.CENTER, image=Holland_tk)
-            self.Holland_image_tk = Holland_tk  # Keep reference
-
-            # Transparent button overlay
-            self.canvas.create_rectangle(10, bottom_position1, 250, bottom_position2 , fill="", outline="", tags="Holland")
-
-        else:
-            # Draw car button (visible if no image yet)
-            self.canvas.create_rectangle(10,
-            bottom_position1, 250, bottom_position2 , fill="#90EE90", outline="black", stipple="gray50", tags="Holland")
-            self.canvas.create_text(130, 380, text="オランダ", font=font_title2, fill="black")
-
-         # ドイツ button
-        if self.captured_images["Germany"]:
-            # Display captured car image
-            Germany_image = Image.open(self.captured_images["Germany"])
-            Germany_image = Germany_image.resize((260, 120))  # Match button size
-            Germany_tk = ImageTk.PhotoImage(Germany_image)
-            self.canvas.create_image(370, 520, anchor=tk.CENTER, image=Germany_tk)
-            self.Germany_image_tk = Germany_tk  # Keep reference
-
-            # Transparent button overlay
-            self.canvas.create_rectangle(260, bottom_position1, 510, bottom_position2, fill="", outline="", tags="Germany")
-
-        else:
-            # Draw car button (visible if no image yet)
-            self.canvas.create_rectangle(260, bottom_position1, 510, bottom_position2, fill="#90EE90", outline="black", stipple="gray50", tags="Germany")
-            self.canvas.create_text(385, 380, text="ドイツ", font=font_title2, fill="black")
-
-         #  デンマークbutton
-        if self.captured_images["Denmark"]:
-            # Display captured car image
-            Denmark_image = Image.open(self.captured_images["Denmark"])
-            Denmark_image = Denmark_image.resize((260, 120))  # Match button size
-            Denmark_tk = ImageTk.PhotoImage(Denmark_image)
-            self.canvas.create_image(520, 770, anchor=tk.CENTER, image=Denmark_tk)
-            self.Denmark_image_tk = Denmark_tk  # Keep reference
-
-            # Transparent button overlay
-            self.canvas.create_rectangle(520, bottom_position1, 770, bottom_position2 , fill="", outline="", tags="Denmark")
-
-        else:
-            # Draw car button (visible if no image yet)
-            self.canvas.create_rectangle(520, bottom_position1, 770, bottom_position2 , fill="#90EE90", outline="black", stipple="gray50", tags="Denmark")
-            self.canvas.create_text(645, 380, text="デンマーク", font=font_title2, fill="black")
+        # Ensure background is lowest layer AFTER drawing everything else
+        if self.bg_canvas_id:
+            self.canvas.lower(self.bg_canvas_id)
 
 
     def draw_next_screen(self):
         self.canvas.delete("all")
         self.current_screen = "next"
 
-        # 背景画像として Sam.jpg を表示
+        flag_name = self.flag_map.get(self.blocknumber)
+        if not flag_name:
+            messagebox.showerror("Error", f"無効な選択です ({self.blocknumber})。")
+            self.draw_main_screen()
+            return
+
+        self.sample_image_path = f"image/{flag_name}.png"
+        if not os.path.exists(self.sample_image_path):
+            messagebox.showwarning("ファイル不足", f"サンプル画像が見つかりません:\n{self.sample_image_path}")
+            self.draw_main_screen()
+            return
+
+        # --- Background ---
+        # You can use a specific capture background or the default one
+        capture_bg_path = "image/background_capture.jpg" # Or "image/background.jpg"
         try:
-            bg_image = Image.open("sample.jpg")
-            bg_image = bg_image.resize((800, 600))  # キャンバスサイズに合わせてリサイズ
-            bg_tk = ImageTk.PhotoImage(bg_image)
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=bg_tk)
-            self.bg_next_screen_tk = bg_tk  # 参照を保持
+            bg_image = Image.open(capture_bg_path if os.path.exists(capture_bg_path) else "image/background.jpg")
+            bg_image = bg_image.resize((800, 600), Image.Resampling.LANCZOS)
+            self.bg_next_screen_tk = ImageTk.PhotoImage(bg_image)
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_next_screen_tk)
+            self.canvas.lower(self.bg_next_screen_tk)
         except Exception as e:
-            print(f"Error loading Sam.jpg: {e}")
-        self.canvas.create_text(400, 30, text="ひだりのおてほんとおなじものをつくってね", font=font_subject, fill="black")
-        if self.blocknumber == 0:
-            self.canvas.create_text(240, 80, text="まえからとってね！", font=font_subject, fill="black")
-        elif self.blocknumber == 1:
-            self.canvas.create_text(240, 80, text="よこむきにとってね！", font=font_subject, fill="black")
+            print(f"Error loading capture background: {e}")
+            self.canvas.config(bg="lightgrey")
 
-        # Display camera feed on the right
-        if self.last_frame is not None:
-            frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
-            frame_image = Image.fromarray(frame_rgb)
-            frame_image = frame_image.resize((300, 300))
-            frame_tk = ImageTk.PhotoImage(image=frame_image)
-            self.canvas.create_image(550, 200, anchor=tk.CENTER, image=frame_tk)
-            self.image_tk = frame_tk  # Keep reference
+        # --- Instructions ---
+        self.canvas.create_text(400, 30, text=f"{flag_name}: おてほん と おなじもの を つくってね", font=font_subject, fill="black")
 
-        # Sample image
-        if self.blocknumber == 0:
-            self.sample_image_path = "image/Japan.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-
-        elif self.blocknumber == 1:
-            self.sample_image_path = "image/Sweden.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-
-        elif self.blocknumber == 2:
-            self.sample_image_path = "image/Estonia.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-        
-        elif self.blocknumber == 3:
-            self.sample_image_path = "image/Holland.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-
-        elif self.blocknumber == 4:
-            self.sample_image_path = "image/Germany.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-
-        elif self.blocknumber == 5:
-            self.sample_image_path = "image/Denmark.png"
-            imageSizeX = 300 
-            imageSizeY = 300
-
-
+        # --- Sample Image Display (Left) ---
+        imageSizeX = 250
+        imageSizeY = 200
+        sample_x = 180
+        sample_y = 250
         try:
             sample_image = Image.open(self.sample_image_path)
-            sample_image.thumbnail((imageSizeX,imageSizeY))
-
-            # Create frame around the sample image
-            x1, y1, x2, y2 = 150, 100, 350, 300
-            # self.canvas.create_rectangle(x1, y1, x2, y2, fill="white", outline="black", width=4)
-
-            # Place the sample image within the frame
+            sample_image.thumbnail((imageSizeX, imageSizeY), Image.Resampling.LANCZOS)
             sample_tk = ImageTk.PhotoImage(sample_image)
-            self.canvas.create_image((x1 + x2) // 2, (y1 + y2) // 2, anchor=tk.CENTER, image=sample_tk)
-            self.sample_image_tk = sample_tk  # Keep reference
-
+            self.sample_image_tk = sample_tk # Keep reference
+            self.canvas.create_image(sample_x, sample_y, anchor=tk.CENTER, image=sample_tk)
+            # Optional frame
+            sw, sh = sample_image.size
+            self.canvas.create_rectangle(sample_x - sw//2 - 5, sample_y - sh//2 - 5,
+                                         sample_x + sw//2 + 5, sample_y + sh//2 + 5,
+                                         outline="blue", width=2)
+            self.canvas.create_text(sample_x, sample_y + sh//2 + 25, text="↑ おてほん ↑", font=font_subject, fill="black")
         except Exception as e:
-            print(f"Sample image error: {e}")
+            print(f"Sample image error for {self.sample_image_path}: {e}")
+            self.canvas.create_text(sample_x, sample_y, text="サンプル画像\nエラー", font=font_subject, fill="red", justify=tk.CENTER)
 
-        # Shutter button
-        self.canvas.create_rectangle(300, 400, 500, 450, fill="red", outline="black", tags="shutter")
-        self.canvas.create_text(400, 425, text="しゃしん", font=font_subject, fill="white")
+        # --- Camera Feed Display (Right) ---
+        self.cam_x = 600
+        self.cam_y = 250
+        self.cam_width = 300
+        self.cam_height = 300
+        self.cam_feed_rect = self.canvas.create_rectangle(self.cam_x - self.cam_width//2, self.cam_y - self.cam_height//2,
+                                                           self.cam_x + self.cam_width//2, self.cam_y + self.cam_height//2,
+                                                           fill="black", outline="grey")
+        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
+        self.cam_feed_image_id = None # Will hold the ID of the camera image item
+        self.image_tk = None # Holds the PhotoImage for the camera feed
 
-        # Back to main button (left bottom)
-        self.canvas.create_rectangle(10, 500, 250, 550, fill="blue", outline="black", tags="back_to_main")
-        self.canvas.create_text(125, 525, text="さいしょにもどる", font=font_subject, fill="white")
+        # --- Buttons ---
+        self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
+        self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
 
-        # Message area
-        self.message_id = self.canvas.create_text(400, 500, text="", font=("Helvetica", 14), fill="red")
+        self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main")
+        self.canvas.create_text(150, 555, text="← もどる", font=font_subject, fill="black", tags="back_to_main")
+
+        # --- Message area ---
+        self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
 
     def detail_screen(self):
+        # This function is currently not used as capture_shutter goes back to main.
+        # If you want a detail screen, call this from capture_shutter instead of draw_main_screen.
         self.current_screen = "detail"
-        self.canvas.create_text(400, 500, text="くにのせつめいだよ", font=("Helvetica", 14), fill="black")
-
-        if(self.blocknumber == 0):
-            self.canvas.create_image(300,400,"\image\日本街並み.jpg")
+        self.canvas.delete("all")
+        flag_name = self.flag_map.get(self.blocknumber, "Unknown")
+        self.canvas.create_text(400, 50, text=f"{flag_name} - 詳細", font=font_title, fill="black")
+        # ... (add content like displaying the captured image larger, info etc.) ...
+        # Add a back button
+        self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
+        self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
 
 
     def mouse_event(self, event):
         x, y = event.x, event.y
+        # Find the topmost item under the cursor with a tag
+        items = self.canvas.find_overlapping(x, y, x, y)
+        if not items: return # Clicked on empty space or background
+
+        # Process tags of the topmost item found
+        tags = self.canvas.gettags(items[-1]) # Get tags of the last (topmost) item
+        if not tags: return # Item has no tags
+
+        tag = tags[0] # Use the first tag for primary identification
+
+        print(f"Clicked on item with tags: {tags}, primary tag: {tag}") # Debugging click
 
         if self.current_screen == "main":
-            if 10 <= x <= 250 and  top_position1 <= y <= top_position2:
-                self.blocknumber = 0#日本選択
-                self.draw_next_screen()
-            elif 260 <= x <= 510 and top_position1 <= y <= top_position2:
-                self.blocknumber = 1#スウェーデン選択
-                self.draw_next_screen()
-            elif 520 <= x <= 770 and top_position1 <= y <= top_position2:
-                self.blocknumber = 2#エストニア選択
-                self.draw_next_screen()
-            elif 10 <= x <= 250 and bottom_position1 <= y <= bottom_position2:
-                self.blocknumber = 3#オランダ選択
-                self.draw_next_screen()
-            elif 260 <= x <= 510 and bottom_position1 <= y <= bottom_position2:
-                self.blocknumber = 4#ドイツ選択
-                self.draw_next_screen()
-            elif 520 <= x <= 770 and bottom_position1 <= y <= bottom_position2:
-                self.blocknumber = 5#デンマーク選択
-                self.draw_next_screen()
-
+            # Check if the clicked tag is one of the flag names
+            found_flag = False
+            for num, name in self.flag_map.items():
+                if tag == name:
+                    self.blocknumber = num
+                    print(f"Selected flag: {name} (Block number: {self.blocknumber})")
+                    self.draw_next_screen()
+                    found_flag = True
+                    break
+            if not found_flag:
+                 print(f"Unhandled click on main screen with tag: {tag}")
 
         elif self.current_screen == "next":
-            if 300 <= x <= 500 and 400 <= y <= 450:
+            if tag == "shutter":
+                print("Shutter button clicked")
                 self.capture_shutter()
-            elif 50 <= x <= 200 and 500 <= y <= 550:
-                self.draw_main_screen()  # メインページに戻る
+            elif tag == "back_to_main":
+                print("Back to main clicked")
+                self.draw_main_screen()
+
+        elif self.current_screen == "detail": # If you implement detail screen
+             if tag == "back_to_main":
+                 print("Back to main from detail clicked")
+                 self.draw_main_screen()
 
     def capture_shutter(self):
-        global tome_home, tome_car
-        if self.last_frame is not None:
-            filename = f"captured_image_{self.blocknumber}.jpg"
-            cv2.imwrite(filename, self.last_frame)
-            print(f"Image saved: {filename}")
+        if self.last_frame is None:
+            self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
+            return
+        if self.blocknumber is None:
+            self.canvas.itemconfig(self.message_id, text="エラー: フラッグが選択されていません")
+            return
 
-            # YOLOモデルの適用
-            results = self.model(filename)
+        expected_flag = self.flag_map.get(self.blocknumber)
+        if not expected_flag:
+            self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
+            return
 
-            # 信頼値のしきい値
-            confidence_threshold = 0.3  # ここでしきい値を設定
+        self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
+        self.root.update_idletasks()
+
+        # Use a unique temp filename to avoid potential conflicts if processing is slow
+        timestamp = int(time.time())
+        temp_filename = f"captured_image_temp_{self.blocknumber}_{timestamp}.jpg"
+
+        try:
+            cv2.imwrite(temp_filename, self.last_frame)
+            print(f"Temporary image saved: {temp_filename}")
+
+            # --- YOLO Inference ---
+            results = self.model(temp_filename, verbose=False)
+            confidence_threshold = 0.4 # Increased threshold slightly
+            detected_correct_flag = False
+            best_confidence = 0 # Track the best confidence for the correct flag
 
             if results and len(results[0].boxes) > 0:
-                detected = False  # 検出結果の確認用
-                self.canvas.itemconfig(self.message_id, text="すこしまってね")
+                boxes = results[0].boxes
+                for i in range(len(boxes)):
+                    confidence = boxes.conf[i].item()
+                    label_index = int(boxes.cls[i].item())
+                    object_type = self.model.names.get(label_index, "Unknown")
 
-                for i, box in enumerate(results[0].boxes.xyxy):
-                    confidence = results[0].boxes.conf[i]  # 信頼値を取得
-                    if confidence < confidence_threshold:
-                        continue  # 信頼値がしきい値以下の場合はスキップ
+                    print(f"Detected: {object_type} (Confidence: {confidence:.2f})")
 
-                    x1, y1, x2, y2 = map(int, box.tolist())
-                    label_index = int(results[0].boxes.cls[i])  # クラスIDを取得
-                    object_type = self.model.names[label_index]  # クラス名を取得
-                    print(f"Detected object: {object_type} with confidence: {confidence}")
+                    if object_type == expected_flag and confidence >= confidence_threshold:
+                        if confidence > best_confidence: # Found the correct flag with high enough confidence
+                            best_confidence = confidence # Update best confidence for this flag type
+                            detected_correct_flag = True
+                            print(f"Processing best candidate for {expected_flag} (Conf: {confidence:.2f})")
 
-                    # ブロックナンバーに対応するオブジェクトかどうかを確認
-                    if (self.blocknumber == 0 and object_type != "house") or \
-                    (self.blocknumber == 1 and object_type != "cars"):
-                        continue  # 対応しない場合はスキップ
+                            # Store detection details for processing *after* the loop
+                            best_box = boxes.xyxy[i].tolist()
+                            # Break or continue? For now, let's process the first high-confidence match.
+                            # If you want the absolute highest confidence one, remove the break and store details.
+                            break # Process this one
 
-                    #ボタンの透過度を変更
-                    if (self.blocknumber == 0 and object_type == "house"):
-                        tome_home ="gray25"
+            # --- Process the best detection if found ---
+            if detected_correct_flag:
+                self.canvas.itemconfig(self.message_id, text=f"{expected_flag} をみつけた！ しょりちゅう...", fill='blue')
+                self.root.update_idletasks()
+                x1, y1, x2, y2 = map(int, best_box)
 
-                    if (self.blocknumber == 1 and object_type == "car"):
-                        tome_car ="gray25"
+                try:
+                    # 1. Crop
+                    img_pil = Image.open(temp_filename)
+                    if x1 >= x2 or y1 >= y2: raise ValueError("Invalid BBox")
+                    cropped = img_pil.crop((x1, y1, x2, y2))
+                    if cropped.width == 0 or cropped.height == 0: raise ValueError("Empty crop")
 
-                    detected = True  # 検出成功
-                    self.current_screen == "detail"
-                    
+                    # 2. Remove Background
+                    img_byte_arr = io.BytesIO()
+                    cropped.save(img_byte_arr, format='PNG')
+                    input_image_bytes = img_byte_arr.getvalue()
+                    output_data = remove(input_image_bytes) # Simpler call might work
 
-                    # 検出されたオブジェクトを切り抜き
-                    
-                    cropped = Image.open(filename).crop((x1, y1, x2, y2))
+                    if not output_data: raise ValueError("rembg returned empty data.")
+                    try:
+                        removed_bg_img = Image.open(io.BytesIO(output_data))
+                    except Exception as e_open_rembg:
+                        print(f"Error opening image data from rembg: {e_open_rembg}. Falling back.")
+                        removed_bg_img = cropped.convert("RGBA") # Fallback
 
-                    # 背景を削除
-                    temp_path = os.path.join(self.output_dir, f"temp_{object_type}_{i}.jpg")
-                    cropped.save(temp_path, "JPEG")
-                    with open(temp_path, "rb") as input_file:
-                        output_data = remove(input_file.read())
-                    output_path = os.path.join(self.output_dir, f"result_{object_type}_{i}.png")
-                    with open(output_path, "wb") as output_file:
-                        output_file.write(output_data)
+                    # 3. Define Paths
+                    # Use flag name for more descriptive output file names
+                    base_output_filename = f"{expected_flag}_{timestamp}" # Add timestamp
+                    raw_output_path = os.path.join(self.output_dir, f"result_{base_output_filename}.png")
+                    trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{base_output_filename}.png")
 
-                    trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{object_type}_{i}.png")
+                    # 4. Save the non-trimmed version first
+                    removed_bg_img.save(raw_output_path, "PNG")
+                    print(f"Saved background-removed image: {raw_output_path}")
 
-                    # 透過部分をトリミング
-                    if self.trim_transparent_area(output_path, trimmed_output_path):
-                        # トリミング後の画像パスを保存    
-                        self.captured_images[object_type] = output_path
-                    # トリミング後の画像パスを保存
-                        self.captured_images[object_type] = trimmed_output_path
-                        
-                        self.detail_screen()
-                        
+                    # 5. Trim Transparency
+                    final_image_path = None
+                    if self.trim_transparent_area(raw_output_path, trimmed_output_path):
+                        final_image_path = trimmed_output_path
+                        print(f"Successfully trimmed: {trimmed_output_path}")
                     else:
-                        print(f"Trimming failed for {output_path}")
+                        print(f"Trimming failed or not needed for {raw_output_path}, using non-trimmed.")
+                        final_image_path = raw_output_path # Use the non-trimmed if trim failed
 
-                if detected:
-                    self.draw_main_screen()
-                else:#物体は検知されているが、対象の物体がないor精度が低すぎる
-                    self.canvas.itemconfig(self.message_id, text="あとちょっと！")
-            else:#そもそも物体がない
-                self.canvas.itemconfig(self.message_id, text="みつからないよ～")
+                    # *** SUCCESS ***
+                    self.captured_images[expected_flag] = final_image_path # Update state
+                    self.canvas.itemconfig(self.message_id, text=f"やった！ {expected_flag} をついかしたよ！", fill='green')
+                    self.root.update_idletasks()
+                    time.sleep(1.5) # Show success message
+                    self.draw_main_screen() # Go back and refresh main screen
+                    return # Exit function on success
 
-    def trim_transparent_area(self, input_path, output_path):
-        """
-        PNG画像の透過部分をトリミングし、物体ができるだけ大きくなるように画像の端に配置します。
-        
-        Args:
-            input_path (str): トリミング対象の画像パス。
-            output_path (str): トリミング後の画像を保存するパス。
-            
-        Returns:
-            bool: トリミングが成功した場合はTrue、失敗した場合はFalse。
-        """
-        try:
-            # 入力画像を開く
-            img = Image.open(input_path).convert("RGBA")
-            
-            # アルファチャンネルを使って非透過部分の範囲を取得
-            bbox = img.getbbox()
+                except (ValueError, IOError, Exception) as process_err:
+                    print(f"ERROR during image processing for {expected_flag}: {process_err}")
+                    self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の しょりに しっぱい...", fill='red')
+                    # Stay on capture screen to allow retry
 
-            if bbox:
-                # 物体部分が画像の端に触れるように画像を拡大
-                img_cropped = img.crop(bbox)
-                
-                # 新しい画像サイズを設定（物体が画像端に触れるように）
-                img_width, img_height = img_cropped.size
-                new_img = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 0))
-
-                # 物体を新しい画像内で最適に配置
-                new_img.paste(img_cropped, (0,0), img_cropped)  # 物体を画像の左上に配置
-                
-                # 保存
-                new_img.save(output_path, "PNG")
-                print(f"Trimmed and enlarged image saved: {output_path}")
-                return True
-            else:
-                print("No non-transparent pixels found in the image.")
-                return False
+            else: # Correct flag not detected with high enough confidence
+                self.canvas.itemconfig(self.message_id, text=f"{expected_flag} が みつからない or はっきりしない...", fill='red')
 
         except Exception as e:
-            print(f"Error trimming transparent image: {e}")
+            print(f"ERROR during capture/YOLO: {e}")
+            self.canvas.itemconfig(self.message_id, text="エラー が はっせい しました", fill='red')
+
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(temp_filename):
+                try:
+                    os.remove(temp_filename)
+                    print(f"Deleted temporary file: {temp_filename}")
+                except Exception as e_del:
+                    print(f"Warning: Error deleting temp file {temp_filename}: {e_del}")
+
+
+    def trim_transparent_area(self, input_path, output_path):
+        """Trims transparent pixels around the object in a PNG image."""
+        try:
+            img = Image.open(input_path).convert("RGBA")
+            bbox = img.getbbox()
+            if bbox:
+                img_cropped = img.crop(bbox)
+                if img_cropped.width > 0 and img_cropped.height > 0:
+                    img_cropped.save(output_path, "PNG")
+                    # print(f"Trimmed image saved: {output_path}") # Less verbose
+                    return True
+                else:
+                    print(f"Trimming resulted in empty image for {input_path}. BBox: {bbox}")
+                    return False
+            else:
+                # print(f"No non-transparent pixels found in {input_path}. Cannot trim.") # Less verbose
+                # If no transparent pixels, copy original to output path as "trimmed"
+                import shutil
+                shutil.copy(input_path, output_path)
+                return True # Treat as success (nothing needed trimming)
+        except Exception as e:
+            print(f"Error trimming transparent image '{input_path}': {e}")
             return False
 
     def update_frame(self):
-        if self.capture.isOpened():
-            ret, frame = self.capture.read()
-            if ret:
-                self.frame_count += 1
-                if self.frame_count % 5 == 0:  # Update every 5 frames
-                    self.last_frame = frame
+        """Reads a frame from the camera and updates the display if on the next_screen."""
+        if not (self.capture and self.capture.isOpened()):
+             # Handle case where camera might close unexpectedly
+             if self.current_screen == "next" and self.message_id:
+                 self.canvas.itemconfig(self.message_id, text="カメラ接続エラー", fill="red")
+             return # Stop trying to update
 
-                    if self.current_screen == "next":
+        ret, frame = self.capture.read()
+        if ret:
+            self.frame_count += 1
+            if self.frame_count % 2 == 0: # Update slightly more often for smoother feed
+                self.last_frame = frame
+
+                if self.current_screen == "next":
+                    try:
                         frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
                         frame_image = Image.fromarray(frame_rgb)
-                        frame_image = frame_image.resize((300, 300))
+                        # Use dimensions defined in draw_next_screen
+                        frame_image = frame_image.resize((self.cam_width, self.cam_height), Image.Resampling.NEAREST) # Nearest neighbor is faster for preview
                         frame_tk = ImageTk.PhotoImage(image=frame_image)
-                        self.canvas.create_image(550, 200, anchor=tk.CENTER, image=frame_tk)
-                        self.image_tk = frame_tk  # Keep reference
+                        self.image_tk = frame_tk # Store reference!
 
-        self.root.after(10, self.update_frame)
+                        if self.cam_feed_image_id:
+                            # Update existing image item
+                            self.canvas.itemconfig(self.cam_feed_image_id, image=self.image_tk)
+                        else:
+                            # Create image item if it doesn't exist
+                            self.cam_feed_image_id = self.canvas.create_image(self.cam_x, self.cam_y, anchor=tk.CENTER, image=self.image_tk)
+                            # Remove "Loading..." text only once after the first frame is shown
+                            if self.cam_feed_text_id:
+                                self.canvas.delete(self.cam_feed_text_id)
+                                self.cam_feed_text_id = None # Prevent trying to delete again
+
+                    except Exception as e:
+                        print(f"Error updating camera feed display: {e}")
+                        # Optionally display an error on the canvas itself
+                        if self.cam_feed_text_id:
+                             self.canvas.itemconfig(self.cam_feed_text_id, text="表示エラー")
+
+        # Schedule the next update
+        self.root.after(33, self.update_frame) # Aim for ~30 FPS
 
     def on_close(self):
-        # リソース解放
-        self.capture.release()
+        """Release resources and clean up on window close."""
+        print("Closing application...")
+        if hasattr(self, 'capture') and self.capture and self.capture.isOpened():
+            self.capture.release()
+            print("Camera released.")
 
-        # captured_image_0.jpg と captured_image_1.jpg を削除
-        for i in range(2):
-            filename = f"captured_image_{i}.jpg"
-            if os.path.exists(filename):
-                try:
-                    os.remove(filename)
-                    print(f"Deleted: {filename}")
-                except Exception as e:
-                    print(f"Error deleting {filename}: {e}")
+        # Clean up any remaining temp files (more robustly)
+        print("Cleaning temporary files...")
+        for item in os.listdir('.'): # Check current directory
+             if item.startswith("captured_image_temp_") and item.endswith(".jpg"):
+                 try:
+                     os.remove(item)
+                     print(f"Deleted: {item}")
+                 except Exception as e:
+                     print(f"Error deleting {item}: {e}")
+
+        # # Optional: Clean output directory (use carefully!)
+        # if os.path.exists(self.output_dir):
+        #     print(f"Cleaning output directory: {self.output_dir}")
+        #     # ... (add code to remove files in self.output_dir if desired) ...
 
         self.root.destroy()
-# Main loop
-root = tk.Tk()
 
-# tkinter用のフォントを指定
-font_title = font.Font(family="ＭＳ ゴシック", size=50)
-font_title2 = font.Font(family="ＭＳ ゴシック", size=30)
-font_subject = font.Font(family="ＭＳ ゴシック", size=20)
-tome_home ="gray75"
-tome_car ="gray75"
-sample_images = {}
-top_position1 = 150
-top_position2 = 300
-bottom_position1 = 310
-bottom_position2 = 460
-app = BlockGameApp(root)
-root.protocol("WM_DELETE_WINDOW", app.on_close)
-root.mainloop()
+# --- Main Execution ---
+if __name__ == "__main__":
+    root = tk.Tk()
+
+    # --- Fonts (using common system fonts as fallback) ---
+    try:
+        # Try common Japanese fonts first
+        font_title = font.Font(family="Yu Gothic", size=30, weight="bold")
+        font_title2 = font.Font(family="Yu Gothic", size=22)
+        font_subject = font.Font(family="Yu Gothic", size=16)
+    except tk.TclError:
+        try:
+            font_title = font.Font(family="Meiryo", size=30, weight="bold")
+            font_title2 = font.Font(family="Meiryo", size=22)
+            font_subject = font.Font(family="Meiryo", size=16)
+        except tk.TclError:
+            print("Japanese fonts (Yu Gothic/Meiryo) not found, using Tk default.")
+            font_title = font.Font(size=30, weight="bold")
+            font_title2 = font.Font(size=22)
+            font_subject = font.Font(size=16)
+
+
+    # --- Button Area Positions ---
+    top_position1 = 150 # Y start for top row
+    top_position2 = 300 # Y end for top row
+    bottom_position1 = 320 # Y start for bottom row
+    bottom_position2 = 470 # Y end for bottom row
+
+    # --- Create and Run App ---
+    app = BlockGameApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.on_close) # Handle window close properly
+    root.mainloop()
