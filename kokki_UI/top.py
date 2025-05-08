@@ -7,6 +7,8 @@ import os
 from ultralytics import YOLO
 from rembg import remove
 
+from random_detail import go_to_country_info_screen
+
 
 
 class BlockGameApp:
@@ -291,12 +293,6 @@ class BlockGameApp:
         # Message area
         self.message_id = self.canvas.create_text(400, 500, text="", font=("Helvetica", 14), fill="red")
 
-    def detail_screen(self):
-        self.current_screen = "detail"
-        self.canvas.create_text(400, 500, text="くにのせつめいだよ", font=("Helvetica", 14), fill="black")
-
-        if(self.blocknumber == 0):
-            self.canvas.create_image(300,400,"\image\日本街並み.jpg")
 
 
     def mouse_event(self, event):
@@ -394,7 +390,7 @@ class BlockGameApp:
                     # トリミング後の画像パスを保存
                         self.captured_images[object_type] = trimmed_output_path
                         
-                        self.detail_screen()
+                        self.go_to_country_info_screen(self.blocknumber)
                         
                     else:
                         print(f"Trimming failed for {output_path}")
