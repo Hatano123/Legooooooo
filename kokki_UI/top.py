@@ -10,12 +10,14 @@ from rembg import remove
 import time
 import io # Needed for processing rembg output
 import shutil # For copying file in trim_transparent_area
+from Audio import Audio
 
 class BlockGameApp:
+    
     def __init__(self, root):
         self.root = root
         self.root.title("Block Game - Flag Edition")
-
+        self.audio = Audio()
         # --- Configuration ---
         self.flag_map = {
             0: "Japan", 1: "Sweden", 2: "Estonia",
@@ -133,8 +135,9 @@ class BlockGameApp:
             self.canvas.config(bg="lightgrey")
             if self.bg_canvas_id and self.canvas.winfo_exists(): self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
-
+    
     def draw_main_screen(self):
+        
         self.canvas.delete("all")
         self.current_screen = "main"
         self.update_background_image()
@@ -184,9 +187,13 @@ class BlockGameApp:
             else:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
                 self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
-
+        
         if self.bg_canvas_id and self.canvas.winfo_exists():
             self.canvas.lower(self.bg_canvas_id)
+        
+        # 音声再生を画面描画後に遅延実行
+        self.canvas.after(300, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_fiags.wav"))
+        self.canvas.after(2500, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_select.wav"))
 
 
     def draw_next_screen(self):
@@ -259,6 +266,9 @@ class BlockGameApp:
         self.canvas.create_text(150, 555, text="← もどる", font=font_subject, fill="black", tags="back_to_main")
 
         self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
+        
+        self.canvas.after(300, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_sample.wav"))
+
 
 
     def draw_result_screen(self):
