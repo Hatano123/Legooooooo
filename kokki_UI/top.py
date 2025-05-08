@@ -7,7 +7,6 @@ import os
 from ultralytics import YOLO
 from rembg import remove
 
-from random_detail import go_to_country_info_screen
 
 
 
@@ -23,7 +22,7 @@ class BlockGameApp:
         self.last_frame = None
         self.frame_count = 0
         self.captured_images = {"Japan": None, "Sweden": None, "Estonia": None, "Holland": None, "Germany": None, "Denmark": None}  # Store captured images for house and cars
-        self.capture = cv2.VideoCapture(1)
+        self.capture = cv2.VideoCapture(0)
 
         if not self.capture.isOpened():
             messagebox.showerror("Error", "Cannot access the camera")
@@ -390,7 +389,6 @@ class BlockGameApp:
                     # トリミング後の画像パスを保存
                         self.captured_images[object_type] = trimmed_output_path
                         
-                        self.go_to_country_info_screen(self.blocknumber)
                         
                     else:
                         print(f"Trimming failed for {output_path}")
