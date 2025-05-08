@@ -365,51 +365,6 @@ def mouse_event(self, event):
         if tag == "back_to_main":
             print("Back to main from detail clicked")
             self.draw_main_screen()
-def mouse_event(self, event):
-    x, y = event.x, event.y
-    items = self.canvas.find_overlapping(x, y, x, y)
-    if not items:
-        return
-
-    tags = self.canvas.gettags(items[-1])
-    if not tags:
-        return
-
-    tag = tags[0]
-    print(f"Clicked on item with tags: {tags}, primary tag: {tag} on screen: {self.current_screen}")
-
-    if self.current_screen == "main":
-        for num, name in self.flag_map.items():
-            if tag == name:
-                self.blocknumber = num
-                print(f"Selected flag: {name} (Block number: {self.blocknumber})")
-
-                # ここで分岐：画像がキャプチャ済みなら詳細画面、それ以外は撮影画面
-                if self.captured_images.get(name):
-                    self.detail_screen()
-                else:
-                    self.draw_next_screen()
-                return  # 必須：1つ見つかったら終了
-
-        print(f"Unhandled click on main screen with tag: {tag}")
-
-    elif self.current_screen == "next":
-        if tag == "shutter":
-            print("Shutter button clicked")
-            self.capture_shutter()
-        elif tag == "back_to_main":
-            print("Back to main clicked from next screen")
-            self.draw_main_screen()
-
-    elif self.current_screen == "result":
-        if tag == "back_to_main_from_result":
-            print("Back to main from result screen clicked")
-            self.draw_main_screen()
-
-    elif self.current_screen == "detail":
-        if tag == "back_to_main":
-            print("Back to main from detail clicked")
-            self.draw_main_screen()
 
 
     def capture_shutter(self):
@@ -484,7 +439,7 @@ def mouse_event(self, event):
                         print(f"Error opening image data from rembg: {e_open_rembg}. Falling back.")
                         removed_bg_img = cropped.convert("RGBA")
 
-                    base_output_filename = f"{expected_flag}"
+                    base_output_filename = f"{expected_flag}_{timestamp}"
                     raw_output_path = os.path.join(self.output_dir, f"result_{base_output_filename}.png")
                     trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{base_output_filename}.png")
 
