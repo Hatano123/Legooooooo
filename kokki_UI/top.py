@@ -32,6 +32,8 @@ class BlockGameApp:
         self.last_frame = None
         self.frame_count = 0
 
+        self.image_refs = []
+
         # Output directory for processed images
         self.output_dir = "output_images"
         os.makedirs(self.output_dir, exist_ok=True)
@@ -322,12 +324,143 @@ class BlockGameApp:
                                 tags="back_to_main_from_result")
 
     def detail_screen(self): # Currently unused
+        
+
+# 国のデータ（画像ファイル・説明文）
+        countries = {
+            "Japan":[
+                {
+                    "name": "にほん",
+                    "image": "image/sushi.jpg",
+                    "text": "お寿司（すし）やおにぎりが大好きな、ごはんの国だよ。"
+                },
+                {
+                    "name": "にほん（富士山）",
+                    "image": "image/fuji.jpg",
+                    "text": "富士山（ふじさん）という大きな山がぽっこりそびえているよ。"
+                },
+                {
+                    "name": "にほん（春）",
+                    "image": "image/Japan_town.jpg",
+                    "text": "春には桜（さくら）がたくさん咲（さ）いて、\nピンクの景色（けしき）だよ。"
+                },
+            ],
+    # 他の国を追加したければここに辞書を追加！
+            "Sweden":[
+                {
+                    "name": "スウェーデン",
+                    "image": "image/オーロラ.jpg",
+                    "text": "オーロラが見（み）られる、星空（ほしぞら）がきれいな国だよ。"
+                },
+                {
+                    "name": "スウェーデン（動物）",
+                    "image": "image/鹿.jpg",
+                    "text": "森（もり）でクマやトナカイに会（あ）えるかもしれないよ。"
+                },
+                {
+                    "name": "スウェーデン（イケア）",
+                    "image": "image/IKEA.jpg",
+                    "text": "イケア（IKEA）の家具（かぐ）をつくる、デザインの国だよ。"
+                },
+            ],
+            "Estonia":[
+                {
+                    "name": "エストニア",
+                    "image": "image/森.jpg",
+                    "text": "森（もり）と湖（みずうみ）がたくさんある、\n自然（しぜん）あふれる国だよ。"
+                },
+                {
+                    "name": "エストニア（お菓子）",
+                    "image": "image/カレフ.jpg",
+                    "text": "かわいいお菓子（おかし）「カレフ」を楽しめるよ。"
+                },
+                {
+                    "name": "エストニア（教育）",
+                    "image": "image/図書館.jpg",
+                    "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。"
+                },
+            ],
+            "Holland":[
+                {
+                    "name": "オランダ",
+                    "image": "image/チューリップ.jpg",
+                    "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。"
+            }   ,
+                {
+                    "name": "オランダ（自転車）",
+                    "image": "image/自転車.jpg",
+                    "text": "自転車に乗る人が多くて、どこへでもペダルでおさんぽできるよ。"
+                },
+                {
+                    "name": "オランダ（運河）",
+                    "image": "image/街並み.jpg",
+                    "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
+                },
+            ],
+        "   Germany":[
+                {
+                    "name": "ドイツ",
+                    "image": "image/城.jpg",
+                    "text": "お城（しろ）が山（やま）や川（かわ）のそばにたくさんあるよ。"
+                },
+                {
+                    "name": "ドイツ（食べ物）",
+                    "image": "image/ソーセージ.jpg",
+                    "text": "ソーセージやプレッツェルをもぐもぐおいしく食（た）べられるよ。"
+                },
+                {
+                    "name": "ドイツ（街）",
+                    "image": "image/ド街並み.jpg",
+                    "text": "森の中を走る汽車（きしゃ）や、\n大きなクリスマスマーケットがあるよ。"
+                },
+            ],
+            "Denmark":[
+                {
+                    "name": "デンマーク",
+                    "image": "image/人魚.jpg",
+                    "text": "おとぎ話（ばなし）の人魚姫（ひめ）や\nお城（しろ）がある、メルヘンの国だよ。"
+                },
+                {
+                    "name": "デンマーク（自転車）",
+                    "image": "image/お城.jpg",    
+                    "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。"
+                },
+                {
+                    "name": "デンマーク（レゴ）",
+                    "image": "image/レゴ.jpg",
+                    "text": "レゴの本社（ほんしゃ）があって、\nブロックで遊（あそ）ぶのが大好きだよ。"
+                },
+            ]
+        }   
+
         self.current_screen = "detail"
         self.canvas.delete("all")
         flag_name = self.flag_map.get(self.blocknumber, "Unknown")
-        self.canvas.create_text(400, 50, text=f"{flag_name} - 詳細", font=font_title, fill="black")
+        self.canvas.create_text(400, 50, text=f"{flag_name} について", font=font_title, fill="black")
+
+    # 画像の参照保持用リスト
+        #image_refs = []
+
+        self.image_refs.clear()
+
+        selected_info = random.choice(countries[flag_name])
+
+            
+    # エラー処理やデフォルト画像の使用など
+
+        img = Image.open(selected_info["image"]).resize((300,300))
+        img_tk = ImageTk.PhotoImage(img)
+        self.image_refs.append(img_tk)
+
+        self.canvas.create_image(400, 250, image=img_tk, anchor=tk.CENTER)
+        self.canvas.create_text(430, 430, text=selected_info["text"], font=font_subject, fill="black")
+
+
+        #self.canvas.pack()
         self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
         self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
+
+
 
 
     def mouse_event(self, event):
