@@ -433,7 +433,7 @@ class BlockGameApp:
                         print(f"Error opening image data from rembg: {e_open_rembg}. Falling back.")
                         removed_bg_img = cropped.convert("RGBA")
 
-                    base_output_filename = f"{expected_flag}_{timestamp}"
+                    base_output_filename = f"{expected_flag}"
                     raw_output_path = os.path.join(self.output_dir, f"result_{base_output_filename}.png")
                     trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{base_output_filename}.png")
 
