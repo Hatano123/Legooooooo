@@ -192,8 +192,8 @@ class BlockGameApp:
             self.canvas.lower(self.bg_canvas_id)
         
         # 音声再生を画面描画後に遅延実行
-        self.canvas.after(300, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_fiags.wav"))
-        self.canvas.after(2500, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_select.wav"))
+        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_fiags.wav"))
+        self.canvas.after(2500, lambda: self.audio.play_voice("audio/voiceset/make/make_select.wav"))
 
 
     def draw_next_screen(self):
@@ -267,7 +267,7 @@ class BlockGameApp:
 
         self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
         
-        self.canvas.after(300, lambda: self.audio.play_voice("C:/Legooooooo/kokki_UI/audio/voiceset/make/make_sample.wav"))
+        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
 
 
 
