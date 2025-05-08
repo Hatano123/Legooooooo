@@ -31,6 +31,8 @@ class BlockGameApp:
         self.last_frame = None
         self.frame_count = 0
 
+        self.image_refs = []
+
         # Output directory for processed images
         self.output_dir = "output_images"
         os.makedirs(self.output_dir, exist_ok=True)
@@ -428,23 +430,24 @@ class BlockGameApp:
         self.canvas.create_text(400, 50, text=f"{flag_name} について", font=font_title, fill="black")
 
     # 画像の参照保持用リスト
-        image_refs = []
+        #image_refs = []
 
-        image_refs.clear()
+        self.image_refs.clear()
 
         selected_info = random.choice(countries[flag_name])
 
             
+    # エラー処理やデフォルト画像の使用など
 
-        img = Image.open(selected_info["image"]).resize((350,350))
+        img = Image.open(selected_info["image"]).resize((300,300))
         img_tk = ImageTk.PhotoImage(img)
-        image_refs.append(img_tk)
+        self.image_refs.append(img_tk)
 
-        self.canvas.create_image(450, 300, image=img_tk, anchor=tk.CENTER)
-        self.canvas.create_text(450, 530, text=selected_info["text"], font=font_subject, fill="black")
+        self.canvas.create_image(400, 250, image=img_tk, anchor=tk.CENTER)
+        self.canvas.create_text(430, 430, text=selected_info["text"], font=font_subject, fill="black")
 
 
-        self.canvas.pack()
+        #self.canvas.pack()
         self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
         self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
 
