@@ -11,6 +11,7 @@ import time
 import io # Needed for processing rembg output
 import shutil # For copying file in trim_transparent_area
 from Audio import Audio
+import random
 
 class BlockGameApp:
     
