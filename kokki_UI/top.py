@@ -204,6 +204,42 @@ class BlockGameApp:
         self.current_screen = "next"
 
         flag_name = self.flag_map.get(self.blocknumber)
+        ######################################################################3
+        self.cam_x = 600
+        self.cam_y = 250
+        self.cam_width = 300  # カメラプレビュー表示エリアの幅
+        self.cam_height = 300 # カメラプレビュー表示エリアの高さ
+        self.cam_feed_rect = self.canvas.create_rectangle(
+            self.cam_x - self.cam_width // 2, self.cam_y - self.cam_height // 2,
+            self.cam_x + self.cam_width // 2, self.cam_y + self.cam_height // 2,
+            fill="black", outline="grey"
+        )
+        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
+        self.cam_feed_image_id = None
+        self.image_tk = None
+
+        # --- ▼▼▼ カメラプレビュー内に7:12のガイド枠を追加 ▼▼▼ ---
+        # プレビューエリアの幅を基準に、7:12の枠の高さを計算
+        # (プレビューエリアが正方形なので、幅いっぱいに枠を作ると縦が短くなる)
+        guide_frame_width_on_preview = self.cam_width  # 枠の幅はプレビュー幅と同じ
+        guide_frame_height_on_preview = int(guide_frame_width_on_preview * (7.0 / 12.0)) # 縦:横 = 7:12
+
+        # 枠がプレビューエリアの中央に来るように座標を計算
+        guide_x1 = self.cam_x - guide_frame_width_on_preview // 2
+        guide_y1 = self.cam_y - guide_frame_height_on_preview // 2
+        guide_x2 = self.cam_x + guide_frame_width_on_preview // 2
+        guide_y2 = self.cam_y + guide_frame_height_on_preview // 2
+
+        # ガイド枠をキャンバスに描画 (黄色い線)
+        self.canvas.create_rectangle(
+            guide_x1, guide_y1, guide_x2, guide_y2,
+            outline="yellow", width=2, tags="crop_guide_rect"
+        )
+        # プレビュー上のガイド枠の座標を保存 (x1, y1, x2, y2)
+        self.preview_crop_guide_coords = (guide_x1, guide_y1, guide_x2, guide_y2)
+        # --- ▲▲▲ ガイド枠追加ここまで ▲▲▲ ---
+#################################################################################
+
         if not flag_name:
             messagebox.showerror("Error", f"無効な選択です ({self.blocknumber})。")
             self.draw_main_screen()
@@ -532,13 +568,13 @@ class BlockGameApp:
 
         try:
             cv2.imwrite(temp_filename, self.last_frame)
-            print(f"Temporary image saved: {temp_filename}")
+            print(f"Temporary image saved for YOLO: {temp_filename}")
 
             results = self.model(temp_filename, verbose=False)
             confidence_threshold = 0.4
             detected_correct_flag = False
             best_confidence = 0
-            best_box = None # Initialize best_box
+            best_box = None
 
             if results and len(results[0].boxes) > 0:
                 boxes = results[0].boxes
@@ -546,79 +582,132 @@ class BlockGameApp:
                     confidence = boxes.conf[i].item()
                     label_index = int(boxes.cls[i].item())
                     object_type = self.model.names.get(label_index, "Unknown")
-                    print(f"Detected: {object_type} (Confidence: {confidence:.2f})")
 
                     if object_type == expected_flag and confidence >= confidence_threshold:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             detected_correct_flag = True
-                            best_box = boxes.xyxy[i].tolist() # Store the box coordinates
-                            # Don't break here if you want the absolute best confidence among multiple detections
-                            # For now, let's assume the first good one is fine or update as we go.
-                            # If multiple high-confidence are found, this will pick the last one iterated.
-                            # To pick the absolute best, remove the break and do processing after loop.
-                            # For simplicity, we'll process if detected_correct_flag is True after the loop.
+                            best_box = boxes.xyxy[i].tolist()
 
-
-            if detected_correct_flag and best_box: # Ensure best_box is not None
-                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{expected_flag} をみつけた！ しょりちゅう...", fill='blue')
+            if detected_correct_flag and best_box:
+                if self.message_id and self.canvas.winfo_exists():
+                    self.canvas.itemconfig(self.message_id, text=f"{expected_flag} をみつけた！ きりぬいて ほぞんちゅう...", fill='blue')
                 self.root.update_idletasks()
-                x1, y1, x2, y2 = map(int, best_box)
 
                 try:
-                    img_pil = Image.open(temp_filename)
-                    if x1 >= x2 or y1 >= y2: raise ValueError("Invalid BBox")
-                    cropped = img_pil.crop((x1, y1, x2, y2))
-                    if cropped.width == 0 or cropped.height == 0: raise ValueError("Empty crop")
+                    img_pil_original_capture = Image.open(temp_filename)
+                    original_capture_width, original_capture_height = img_pil_original_capture.size
+                    original_aspect_ratio_wh = original_capture_width / float(original_capture_height) # 幅/高さ
 
-                    img_byte_arr = io.BytesIO()
-                    cropped.save(img_byte_arr, format='PNG')
-                    input_image_bytes = img_byte_arr.getvalue()
-                    output_data = remove(input_image_bytes)
+                    if self.preview_crop_guide_coords is None:
+                        raise ValueError("Crop guide coordinates (self.preview_crop_guide_coords) are not set.")
 
-                    if not output_data: raise ValueError("rembg returned empty data.")
-                    try:
-                        removed_bg_img = Image.open(io.BytesIO(output_data))
-                    except Exception as e_open_rembg:
-                        print(f"Error opening image data from rembg: {e_open_rembg}. Falling back.")
-                        removed_bg_img = cropped.convert("RGBA")
+                    preview_display_area_x1_on_canvas = self.cam_x - self.cam_width // 2
+                    preview_display_area_y1_on_canvas = self.cam_y - self.cam_height // 2
+                    
+                    guide_x1_abs_canvas, guide_y1_abs_canvas, \
+                    guide_x2_abs_canvas, guide_y2_abs_canvas = self.preview_crop_guide_coords
 
-                    base_output_filename = f"{expected_flag}_{timestamp}"
-                    raw_output_path = os.path.join(self.output_dir, f"result_{base_output_filename}.png")
-                    trimmed_output_path = os.path.join(self.output_dir, f"trimmed_{base_output_filename}.png")
+                    guide_rel_x1_on_preview = guide_x1_abs_canvas - preview_display_area_x1_on_canvas
+                    guide_rel_y1_on_preview = guide_y1_abs_canvas - preview_display_area_y1_on_canvas
+                    guide_width_on_preview = (guide_x2_abs_canvas - preview_display_area_x1_on_canvas) - guide_rel_x1_on_preview
+                    guide_height_on_preview = (guide_y2_abs_canvas - preview_display_area_y1_on_canvas) - guide_rel_y1_on_preview
 
-                    removed_bg_img.save(raw_output_path, "PNG")
-                    print(f"Saved background-removed image: {raw_output_path}")
+                    scale_x_preview_to_orig = original_capture_width / float(self.cam_width)
+                    scale_y_preview_to_orig = original_capture_height / float(self.cam_height)
 
-                    final_image_path = None
-                    if self.trim_transparent_area(raw_output_path, trimmed_output_path):
-                        final_image_path = trimmed_output_path
-                        print(f"Successfully trimmed: {trimmed_output_path}")
-                    else:
-                        print(f"Trimming failed or not needed for {raw_output_path}, using non-trimmed.")
-                        final_image_path = raw_output_path
+                    # --- ▼▼▼ プレビューの歪みを考慮したクロップ領域計算 ▼▼▼ ---
+                    
+                    # プレビュー上のガイド枠の中心座標 (プレビュー表示エリア内での相対座標)
+                    guide_center_x_on_preview_rel = guide_rel_x1_on_preview + guide_width_on_preview / 2.0
+                    guide_center_y_on_preview_rel = guide_rel_y1_on_preview + guide_height_on_preview / 2.0
+
+                    # ガイド枠の中心を元画像上にマッピング
+                    crop_center_x_orig = guide_center_x_on_preview_rel * scale_x_preview_to_orig
+                    crop_center_y_orig = guide_center_y_on_preview_rel * scale_y_preview_to_orig
+
+                    # ターゲットのアスペクト比 (幅/高さ)
+                    target_crop_aspect_ratio_wh = 12.0 / 7.0
+
+                    # プレビューのガイド枠の「高さ」を元画像にマッピングしたものを基準にする
+                    # (ユーザーはプレビューの「縦」に合わせたので、こちらを信頼する)
+                    scaled_guide_height_orig = guide_height_on_preview * scale_y_preview_to_orig
+                    
+                    final_crop_height_orig = scaled_guide_height_orig
+                    final_crop_width_orig = final_crop_height_orig * target_crop_aspect_ratio_wh
+
+                    # (代替案：プレビューの「幅」を基準にする場合)
+                    # scaled_guide_width_orig = guide_width_on_preview * scale_x_preview_to_orig
+                    # final_crop_width_orig = scaled_guide_width_orig
+                    # final_crop_height_orig = final_crop_width_orig / target_crop_aspect_ratio_wh
+
+
+                    # 計算されたクロップサイズが元画像より大きくならないように調整
+                    if final_crop_width_orig > original_capture_width:
+                        print("Warning: Calculated crop width exceeds original image width. Adjusting...")
+                        final_crop_width_orig = original_capture_width
+                        final_crop_height_orig = final_crop_width_orig / target_crop_aspect_ratio_wh # 高さを再計算
+                    
+                    if final_crop_height_orig > original_capture_height:
+                        print("Warning: Calculated crop height exceeds original image height. Adjusting...")
+                        final_crop_height_orig = original_capture_height
+                        final_crop_width_orig = final_crop_height_orig * target_crop_aspect_ratio_wh # 幅を再計算
+                    
+                    # 元画像上でのクロップ領域の左上、右下座標
+                    crop_orig_x1 = int(crop_center_x_orig - final_crop_width_orig / 2.0)
+                    crop_orig_y1 = int(crop_center_y_orig - final_crop_height_orig / 2.0)
+                    crop_orig_x2 = int(crop_center_x_orig + final_crop_width_orig / 2.0)
+                    crop_orig_y2 = int(crop_center_y_orig + final_crop_height_orig / 2.0)
+                                     
+                    crop_orig_x1 = max(0, crop_orig_x1)
+                    crop_orig_y1 = max(0, crop_orig_y1)
+                    crop_orig_x2 = min(original_capture_width, crop_orig_x2)
+                    crop_orig_y2 = min(original_capture_height, crop_orig_y2)
+
+                    if crop_orig_x1 >= crop_orig_x2 or crop_orig_y1 >= crop_orig_y2:
+                        error_msg = (f"Calculated crop dimensions are invalid. "
+                                     f"Box: ({crop_orig_x1},{crop_orig_y1},{crop_orig_x2},{crop_orig_y2})")
+                        print(f"ERROR: {error_msg}")
+                        raise ValueError(error_msg)
+
+                    cropped_img = img_pil_original_capture.crop((crop_orig_x1, crop_orig_y1, crop_orig_x2, crop_orig_y2))
+                    print(f"Original image size (WxH): {original_capture_width}x{original_capture_height}")
+                    print(f"Preview guide size (WxH): {guide_width_on_preview}x{guide_height_on_preview}")
+                    print(f"Scaled guide height on original: {scaled_guide_height_orig}")
+                    print(f"Final crop size on original (WxH): {int(final_crop_width_orig)}x{int(final_crop_height_orig)}")
+                    print(f"Cropped image to (WxH): {cropped_img.width}x{cropped_img.height}")
+                    
+                    permanent_filename_base = f"{expected_flag}_{timestamp}"
+                    final_image_path = os.path.join(self.output_dir, f"guide_cropped_{permanent_filename_base}.jpg")
+
+                    cropped_img.save(final_image_path, "JPEG", quality=90)
+                    print(f"Saved guide-cropped image to: {final_image_path}")
 
                     self.captured_images[expected_flag] = final_image_path
                     print(f"成功！ {expected_flag} を追加しました。ファイル: {final_image_path}")
+                    
                     self.draw_result_screen()
                     return
 
-                except (ValueError, IOError, Exception) as process_err:
-                    print(f"ERROR during image processing for {expected_flag}: {process_err}")
-                    if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の しょりに しっぱい...", fill='red')
-
+                except Exception as e_process_save:
+                    print(f"ERROR during image processing/saving for {expected_flag}: {e_process_save}")
+                    if self.message_id and self.canvas.winfo_exists():
+                        self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の 加工・保存に しっぱい...", fill='red')
+            
             else:
-                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{expected_flag} が みつからない or はっきりしない...", fill='red')
+                if self.message_id and self.canvas.winfo_exists():
+                    self.canvas.itemconfig(self.message_id, text=f"{expected_flag} が みつからない or はっきりしない...", fill='red')
 
         except Exception as e:
-            print(f"ERROR during capture/YOLO: {e}")
-            if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="エラー が はっせい しました", fill='red')
+            print(f"ERROR during capture/YOLO processing: {e}")
+            if self.message_id and self.canvas.winfo_exists():
+                self.canvas.itemconfig(self.message_id, text="エラー が はっせい しました", fill='red')
 
         finally:
             if os.path.exists(temp_filename):
                 try:
                     os.remove(temp_filename)
-                    print(f"Deleted temporary file: {temp_filename}")
+                    print(f"Deleted temporary file used for YOLO: {temp_filename}")
                 except Exception as e_del:
                     print(f"Warning: Error deleting temp file {temp_filename}: {e_del}")
 
@@ -667,11 +756,12 @@ class BlockGameApp:
 
             if self.current_screen == "next" and self.canvas.winfo_exists(): # Ensure canvas is still there
                 try:
+                    print(frame.shape[:3])
                     frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
                     frame_image_pil = Image.fromarray(frame_rgb)
                     frame_image_pil = frame_image_pil.resize((self.cam_width, self.cam_height), Image.Resampling.NEAREST)
                     self.image_tk = ImageTk.PhotoImage(image=frame_image_pil) # Keep reference
-
+    
                     if self.cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_image_id):
                         self.canvas.itemconfig(self.cam_feed_image_id, image=self.image_tk)
                     elif self.canvas.winfo_exists(): # Create if not exists or was deleted
@@ -679,6 +769,11 @@ class BlockGameApp:
                         if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
                             self.canvas.delete(self.cam_feed_text_id)
                             self.cam_feed_text_id = None
+                    # --- ▼▼▼ ガイド枠をカメラフィードの前面に表示する ▼▼▼ ---
+                    # "crop_guide_rect" タグを持つアイテムが存在すれば、それを最前面に移動
+                    if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
+                        self.canvas.tag_raise("crop_guide_rect")
+                    # --- ▲▲▲ ここまで追加 ▲▲▲ ---
                 except tk.TclError as e: # Handle cases where canvas items might be deleted
                     print(f"TclError updating camera feed (item might be deleted): {e}")
                     self.cam_feed_image_id = None # Reset so it gets recreated
