@@ -193,9 +193,11 @@ class BlockGameApp:
         if self.bg_canvas_id and self.canvas.winfo_exists():
             self.canvas.lower(self.bg_canvas_id)
         
+        # === BGM再生（即時） ===
+        self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
+        
         # 音声再生を画面描画後に遅延実行
-        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_fiags.wav"))
-        self.canvas.after(2500, lambda: self.audio.play_voice("audio/voiceset/make/make_select.wav"))
+        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 
     def draw_next_screen(self):
@@ -322,6 +324,8 @@ class BlockGameApp:
         self.canvas.create_text(400, 505, text="メインにもどる",
                                 font=font_subject, fill="black",
                                 tags="back_to_main_from_result")
+        
+        self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
     def detail_screen(self): # Currently unused
         
@@ -397,7 +401,7 @@ class BlockGameApp:
                     "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
                 },
             ],
-        "   Germany":[
+            "Germany":[
                 {
                     "name": "ドイツ",
                     "image": "image/城.jpg",

@@ -1,7 +1,7 @@
 import pygame
 
 class Audio:
-    def __init__(self, bgm_volume=0.09, voice_volume=1.0):
+    def __init__(self, bgm_volume=0.35, voice_volume=1.0):
         pygame.mixer.init()
         self.bgm_volume = bgm_volume
         self.voice_volume = voice_volume
