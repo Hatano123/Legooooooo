@@ -124,13 +124,31 @@ image_refs = []
 
 def draw_country_group(flag):
     canvas.delete("all")  # 前の表示を消す
+    image_refs.clear()
+
+
+     # 国のデータ（略）
+
+    flag_bg_path = f"image/{flag}.png"
+
+    try:
+        flag_bg_img = Image.open(flag_bg_path).resize((800,600)).convert("RGBA")
+        alpha = flag_bg_img.split()[3].point(lambda p: p * 0.4)
+        flag_bg_img.putalpha(alpha)
+        flag_bg_tk = ImageTk.PhotoImage(flag_bg_img)
+        image_refs.append(flag_bg_tk)
+        print("読み込んだ")
+
+        # キャンバスに背景として描画（←削除の後に描画されるのでOK）
+        canvas.create_image(400, 300, image=flag_bg_tk, anchor=tk.CENTER)
+    except Exception as e:
+        print(f"国旗画像の読み込み失敗: {e}")
 
     title_text = countries[flag][0]["name"]+"について"
     canvas.create_text(450, 50, text=title_text, font=font_title, fill="black")
 
     countriy_list = countries[flag]
-    image_refs.clear()
-
+    
     start_x = 150
     space_x = 300
     image_y = 250
