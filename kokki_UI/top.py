@@ -430,12 +430,36 @@ class BlockGameApp:
                 },
             ]
         }   
-
         self.current_screen = "detail"
         self.canvas.delete("all")
+
+#         flag_name = self.flag_map.get(self.blocknumber, "Unknown")
+# # 2. 国旗画像を薄く加工して背景として表示
+
+#         flag_bg_path = f"image/{flag_name}.png"  # 国旗画像パスの例。ファイル構成に合わせて変えてください。
+
+#         try:
+#             flag_bg_img = Image.open(flag_bg_path).resize((800,600)).convert("RGBA")
+
+#     # 透明度を下げる（アルファ値を100に）
+#             alpha = flag_bg_img.split()[3].point(lambda p: p * 0.4)  # 0.4は透明度調整。0=透明,1=不透明
+#             flag_bg_img.putalpha(alpha)
+
+#             flag_bg_tk = ImageTk.PhotoImage(flag_bg_img)
+#             self.image_refs.append(flag_bg_tk)
+#             # 1. 白い四角形の枠を作る
+#             self.canvas.create_rectangle(250, 200, 550, 500, fill="white", outline="black")
+
+
+#     # 白枠の中（中央）に国旗を表示
+#             self.canvas.create_image(400, 300, image=flag_bg_tk, anchor=tk.CENTER)
+#         except Exception as e:
+#             print(f"国旗画像の読み込み失敗: {e}")
+
+        
         flag_name_en = self.flag_map[self.blocknumber]
         flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
-        flag_name = self.flag_map.get(self.blocknumber, "Unknown")
+        
         self.canvas.create_text(400, 50, text=f"{flag_name_jp} について", font=font_title, fill="black")
 
     # 画像の参照保持用リスト
