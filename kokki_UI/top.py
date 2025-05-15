@@ -198,7 +198,7 @@ class BlockGameApp:
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
         
         # 音声再生を画面描画後に遅延実行
-        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
+        self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 
     def draw_next_screen(self):
@@ -272,7 +272,8 @@ class BlockGameApp:
 
         self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
         
-        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
+        #self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
+        self.audio.play_voice("audio/voiceset/make/make_sample.wav")
 
 
 
@@ -528,7 +529,9 @@ class BlockGameApp:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
             return
 
-        if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
+        if self.message_id and self.canvas.winfo_exists():
+            self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
+            self.audio.play_voice("audio/voiceset/others/check_picture.wav")
         self.root.update_idletasks()
 
         timestamp = int(time.time())
