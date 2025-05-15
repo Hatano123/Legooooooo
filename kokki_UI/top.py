@@ -388,7 +388,7 @@ class BlockGameApp:
                     "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
                 },
             ],
-        "   Germany":[
+            "Germany":[
                 {
                     "name": "ドイツ",
                     "image": "image/城.jpg",
