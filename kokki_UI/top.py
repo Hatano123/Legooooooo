@@ -17,7 +17,7 @@ class BlockGameApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Block Game - Flag Edition")
+        self.root.title("こっきでわくわく")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
         # --- Configuration ---
@@ -143,17 +143,61 @@ class BlockGameApp:
             self.canvas.config(bg="lightgrey")
             if self.bg_canvas_id and self.canvas.winfo_exists(): self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
-    
+            
     def draw_main_screen(self):
-        
         self.canvas.delete("all")
         self.current_screen = "main"
-        self.update_background_image()
+ 
+        # --- Main screen specific background ---
+        main_background_path = "image/background.jpg"
+        try:
+            if not os.path.exists(main_background_path):
+                print(f"ERROR: Main background image file not found: {main_background_path}")
+                self.canvas.config(bg="lightgrey") # Fallback color
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        pass
+                self.bg_tk = None
+                self.bg_canvas_id = None
+            else:
+                # Load and display the specific main background
+                main_bg_image_pil = Image.open(main_background_path)
+                main_bg_image_pil = main_bg_image_pil.resize((800, 600), Image.Resampling.LANCZOS)
+                # self.bg_tk needs to be updated for this specific background
+                self.bg_tk = ImageTk.PhotoImage(main_bg_image_pil)
+ 
+                # If a canvas ID for background exists, delete it to ensure clean redraw
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        self.bg_canvas_id = None # Reset if ID was invalid
+ 
+                self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+                self.canvas.lower(self.bg_canvas_id) # Send to back
+        except Exception as e:
+            print(f"Error setting main background image from {main_background_path}: {e}")
+            self.canvas.config(bg="lightgrey")
+            if self.bg_canvas_id and self.canvas.winfo_exists():
+                try:
+                    self.canvas.delete(self.bg_canvas_id)
+                except tk.TclError:
+                    pass
+            self.bg_tk = None
+            self.bg_canvas_id = None
+        # --- End of Main screen specific background ---
+ 
+        # The call to self.update_background_image() is removed if we want a fixed background for main_screen.
+        # If you still want the dynamic background based on last captured flag,
+        # then the above block should be removed and self.update_background_image() should be kept.
+        # For this request (fixed "image/background.jpg"), we use the block above.
 
-        self.canvas.create_text(400, 30, text="Legoooooo Flags!", font=("Helvetica", 24, "bold"), fill="black")
+        self.canvas.create_text(400, 30, text="こっきでわくわく", font=("Helvetica", 24, "bold"), fill="black")
         self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
         self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
-
+ 
         button_coords = {
             "Japan":   (10, top_position1, 250, top_position2),
             "Sweden":  (260, top_position1, 510, top_position2),
@@ -162,24 +206,25 @@ class BlockGameApp:
             "Germany": (260, bottom_position1, 510, bottom_position2),
             "Denmark": (520, bottom_position1, 770, bottom_position2)
         }
-        button_texts = {
-            "Japan": "にほん", "Sweden": "ｽｳｪｰﾃﾞﾝ", "Estonia": "ｴｽﾄﾆｱ",
-            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "ﾃﾞﾝﾏｰｸ"
-        }
+        # Use self.flag_names_jp for consistency in displayed text
+        button_texts = {name_en: self.flag_names_jp.get(name_en, name_en) for name_en in button_coords.keys()}
+ 
         text_y_offset_ratio = 0.4
-
         self.flag_photo_references.clear()
-
-        for flag_name, coords in button_coords.items():
+ 
+        for flag_name, coords in button_coords.items(): # flag_name here is the English key
             x1, y1, x2, y2 = coords
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
             btn_width = x2 - x1
             btn_height = y2 - y1
             text_y = y1 + (btn_height * text_y_offset_ratio)
-
+           
+            # Get the Japanese display text using the English key
+            display_text = button_texts[flag_name]
+ 
             captured_image_path = self.captured_images.get(flag_name)
-
+ 
             if captured_image_path and os.path.exists(captured_image_path):
                 try:
                     img = Image.open(captured_image_path)
@@ -191,7 +236,8 @@ class BlockGameApp:
                 except Exception as e:
                     print(f"Error displaying captured image {flag_name} from {captured_image_path}: {e}")
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="#FFCCCC", outline="black", stipple="gray25", tags=(flag_name, "button_fallback"))
-                    self.canvas.create_text(center_x, text_y, text=f"{button_texts[flag_name]}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
+                    # Use display_text for fallback
+                    self.canvas.create_text(center_x, text_y, text=f"{display_text}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
             else:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
                 self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
@@ -202,8 +248,6 @@ class BlockGameApp:
         # === BGM再生（即時） ===
         self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
-        
-        # 音声再生を画面描画後に遅延実行
         self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 

@@ -1,3 +1,4 @@
 # Ignore the legovenv directory
 legovenv/
 /kokki_UI/output_images/
+**/__pycache__/**
