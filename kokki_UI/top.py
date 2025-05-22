@@ -25,6 +25,10 @@ class BlockGameApp:
             0: "Japan", 1: "Sweden", 2: "Estonia",
             3: "Oranda", 4: "Germany", 5: "Denmark"
         }
+        self.flag_names_jp = { 
+            "Japan": "日本", "Sweden": "スウェーデン", "Estonia": "エストニア",
+            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "デンマーク" }
+        
         # Stores the PATH to the final processed image, or None
         self.captured_images = {flag: None for flag in self.flag_map.values()}
 
@@ -207,6 +211,8 @@ class BlockGameApp:
         self.current_screen = "next"
 
         flag_name = self.flag_map.get(self.blocknumber)
+        flag_name_en = self.flag_map[self.blocknumber]
+        flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         if not flag_name:
             messagebox.showerror("Error", f"無効な選択です ({self.blocknumber})。")
             self.draw_main_screen()
@@ -236,8 +242,7 @@ class BlockGameApp:
             print(f"Error loading capture background: {e}")
             self.canvas.config(bg="lightgrey")
 
-        # 画面上部のテキスト
-        self.canvas.create_text(400, 30, text=f"{flag_name}: おてほん と おなじもの を つくってね", font=font_subject, fill="black")
+        self.canvas.create_text(400, 30, text=f"{flag_name_jp}: おてほん と おなじもの を つくってね", font=font_subject, fill="black")
 
         # サンプル画像の表示エリア設定と描画
         imageSizeX = 250 # サンプル画像の最大幅
@@ -361,13 +366,14 @@ class BlockGameApp:
             self.canvas.config(bg="lightyellow")
 
         flag_name = self.flag_map.get(self.blocknumber, "不明な国")
-
+        flag_name_en = self.flag_map[self.blocknumber]
+        flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         self.canvas.create_text(400, 80,
-                                text=f"「{flag_name}」をゲットしたよ！",
+                                text=f"「{flag_name_jp}」をゲットしたよ！",
                                 font=font_title, fill="darkgreen")
 
         self.canvas.create_text(400, 150,
-                                text=f"国旗の番号: {self.blocknumber}",
+                                text=f"国旗(こっき)の番号(ばんごう): {self.blocknumber}",
                                 font=font_subject, fill="black")
 
         captured_image_path = self.captured_images.get(flag_name)
@@ -449,7 +455,7 @@ class BlockGameApp:
                     "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。"
                 },
             ],
-            "Holland":[
+            "Oranda":[
                 {
                     "name": "オランダ",
                     "image": "image/チューリップ.jpg",
@@ -501,16 +507,43 @@ class BlockGameApp:
                 },
             ]
         }   
-
         self.current_screen = "detail"
         self.canvas.delete("all")
+        self.image_refs.clear()
+
         flag_name = self.flag_map.get(self.blocknumber, "Unknown")
-        self.canvas.create_text(400, 50, text=f"{flag_name} について", font=font_title, fill="black")
+# 2. 国旗画像を薄く加工して背景として表示
+
+        flag_bg_path = f"image/{flag_name}.png"  # 国旗画像パスの例。ファイル構成に合わせて変えてください。
+
+        try:
+            flag_bg_img = Image.open(flag_bg_path).resize((800,600)).convert("RGBA")
+
+    # 透明度を下げる（アルファ値を100に）
+            alpha = flag_bg_img.split()[3].point(lambda p: p * 0.4)  # 0.4は透明度調整。0=透明,1=不透明
+            flag_bg_img.putalpha(alpha)
+
+            flag_bg_tk = ImageTk.PhotoImage(flag_bg_img)
+            self.image_refs.append(flag_bg_tk)
+            # 1. 白い四角形の枠を作る
+            #self.canvas.create_rectangle(250, 200, 550, 500, fill="white", outline="black")
+
+
+    # 白枠の中（中央）に国旗を表示
+            self.canvas.create_image(400, 300, image=flag_bg_tk, anchor=tk.CENTER)
+        except Exception as e:
+            print(f"国旗画像の読み込み失敗: {e}")
+
+        
+        flag_name_en = self.flag_map[self.blocknumber]
+        flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
+        
+        self.canvas.create_text(400, 50, text=f"{flag_name_jp} について", font=font_title, fill="black")
 
     # 画像の参照保持用リスト
         #image_refs = []
 
-        self.image_refs.clear()
+        
 
         selected_info = random.choice(countries[flag_name])
 
@@ -587,6 +620,8 @@ class BlockGameApp:
             return
 
         expected_flag = self.flag_map.get(self.blocknumber)
+        flag_name_en = self.flag_map[self.blocknumber]
+        flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         if not expected_flag:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
             return
@@ -619,11 +654,16 @@ class BlockGameApp:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             detected_correct_flag = True
-                            best_box = boxes.xyxy[i].tolist()
+                            best_box = boxes.xyxy[i].tolist() # Store the box coordinates
+                            # Don't break here if you want the absolute best confidence among multiple detections
+                            # For now, let's assume the first good one is fine or update as we go.
+                            # If multiple high-confidence are found, this will pick the last one iterated.
+                            # To pick the absolute best, remove the break and do processing after loop.
+                            # For simplicity, we'll process if detected_correct_flag is True after the loop.
 
-            if detected_correct_flag and best_box:
-                if self.message_id and self.canvas.winfo_exists():
-                    self.canvas.itemconfig(self.message_id, text=f"{expected_flag} をみつけた！ きりぬいて ほぞんちゅう...", fill='blue')
+
+            if detected_correct_flag and best_box: # Ensure best_box is not None
+                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{flag_name_jp} をみつけた！ しょりちゅう...", fill='blue')
                 self.root.update_idletasks()
                 try:
                     img_pil_original_capture = Image.open(temp_filename)
@@ -702,7 +742,7 @@ class BlockGameApp:
                     print(f"Saved guide-cropped image to: {final_image_path}")
 
                     self.captured_images[expected_flag] = final_image_path
-                    print(f"成功！ {expected_flag} を追加しました。ファイル: {final_image_path}")
+                    print(f"成功！ {flag_name_jp} を追加しました。ファイル: {final_image_path}")
                     self.draw_result_screen()
                     return
                 except Exception as e_process_save:
@@ -710,8 +750,8 @@ class BlockGameApp:
                     if self.message_id and self.canvas.winfo_exists():
                         self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の 加工・保存に しっぱい...", fill='red')
             else:
-                if self.message_id and self.canvas.winfo_exists():
-                    self.canvas.itemconfig(self.message_id, text=f"{expected_flag} が みつからない or はっきりしない...", fill='red')
+                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{flag_name_jp} が みつからない or はっきりしない...", fill='red')
+
         except Exception as e:
             print(f"ERROR during capture/YOLO processing: {e}")
             if self.message_id and self.canvas.winfo_exists():
