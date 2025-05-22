@@ -539,7 +539,7 @@ class BlockGameApp:
         flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         
         self.canvas.create_text(400, 50, text=f"{flag_name_jp} について", font=font_title, fill="black")
-
+        self.canvas.create_text(680, 100, text="こっかがながれているよ！" ,font=font_subject)
     # 画像の参照保持用リスト
         #image_refs = []
 
