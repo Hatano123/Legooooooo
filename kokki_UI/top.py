@@ -378,7 +378,7 @@ class BlockGameApp:
                     "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。"
                 },
             ],
-            "Holland":[
+            "Oranda":[
                 {
                     "name": "オランダ",
                     "image": "image/チューリップ.jpg",
