@@ -195,9 +195,11 @@ class BlockGameApp:
         if self.bg_canvas_id and self.canvas.winfo_exists():
             self.canvas.lower(self.bg_canvas_id)
         
+        # === BGM再生（即時） ===
+        self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
+        
         # 音声再生を画面描画後に遅延実行
-        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_fiags.wav"))
-        self.canvas.after(2500, lambda: self.audio.play_voice("audio/voiceset/make/make_select.wav"))
+        self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 
     def draw_next_screen(self):
@@ -333,8 +335,9 @@ class BlockGameApp:
         # メッセージ表示用テキストオブジェクト (最初は空)
         self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
         
-        # 音声再生
-        self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
+
+        #self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
+        self.audio.play_voice("audio/voiceset/make/make_sample.wav")
 
 
     def draw_result_screen(self):
@@ -386,6 +389,8 @@ class BlockGameApp:
         self.canvas.create_text(400, 505, text="メインにもどる",
                                 font=font_subject, fill="black",
                                 tags="back_to_main_from_result")
+        
+        self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
     def detail_screen(self): # Currently unused
         
@@ -461,7 +466,7 @@ class BlockGameApp:
                     "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
                 },
             ],
-        "   Germany":[
+            "Germany":[
                 {
                     "name": "ドイツ",
                     "image": "image/城.jpg",
@@ -586,7 +591,9 @@ class BlockGameApp:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
             return
 
-        if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
+        if self.message_id and self.canvas.winfo_exists():
+            self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
+            self.audio.play_voice("audio/voiceset/others/check_picture.wav")
         self.root.update_idletasks()
 
         timestamp = int(time.time())
