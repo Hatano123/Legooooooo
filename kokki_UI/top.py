@@ -17,7 +17,7 @@ class BlockGameApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Block Game - Flag Edition")
+        self.root.title("こっきでわくわく")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
         # --- Configuration ---
@@ -193,8 +193,8 @@ class BlockGameApp:
         # If you still want the dynamic background based on last captured flag,
         # then the above block should be removed and self.update_background_image() should be kept.
         # For this request (fixed "image/background.jpg"), we use the block above.
- 
-        self.canvas.create_text(400, 30, text="Legoooooo Flags!", font=("Helvetica", 24, "bold"), fill="black")
+
+        self.canvas.create_text(400, 30, text="こっきでわくわく", font=("Helvetica", 24, "bold"), fill="black")
         self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
         self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
  
