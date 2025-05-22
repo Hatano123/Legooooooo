@@ -200,6 +200,7 @@ class BlockGameApp:
             self.canvas.lower(self.bg_canvas_id)
         
         # === BGM再生（即時） ===
+        self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
         
         # 音声再生を画面描画後に遅延実行
@@ -399,111 +400,127 @@ class BlockGameApp:
         self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
     def detail_screen(self): # Currently unused
-        
-
-# 国のデータ（画像ファイル・説明文）
+        # 国のデータ（画像ファイル・説明文）
         countries = {
             "Japan":[
                 {
                     "name": "にほん",
                     "image": "image/sushi.jpg",
-                    "text": "お寿司（すし）やおにぎりが大好きな、ごはんの国だよ。"
+                    "text": "お寿司（すし）やおにぎりが大好きな、ごはんの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan1.wav"
                 },
                 {
                     "name": "にほん（富士山）",
                     "image": "image/fuji.jpg",
-                    "text": "富士山（ふじさん）という大きな山がぽっこりそびえているよ。"
+                    "text": "富士山（ふじさん）という大きな山がぽっこりそびえているよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan2.wav"
                 },
                 {
                     "name": "にほん（春）",
                     "image": "image/Japan_town.jpg",
-                    "text": "春には桜（さくら）がたくさん咲（さ）いて、\nピンクの景色（けしき）だよ。"
+                    "text": "春には桜（さくら）がたくさん咲（さ）いて、\nピンクの景色（けしき）だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan3.wav"
                 },
             ],
-    # 他の国を追加したければここに辞書を追加！
+        # 他の国を追加したければここに辞書を追加！
             "Sweden":[
                 {
                     "name": "スウェーデン",
                     "image": "image/オーロラ.jpg",
-                    "text": "オーロラが見（み）られる、星空（ほしぞら）がきれいな国だよ。"
+                    "text": "オーロラが見（み）られる、星空（ほしぞら）がきれいな国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden1.wav"
                 },
                 {
                     "name": "スウェーデン（動物）",
                     "image": "image/鹿.jpg",
-                    "text": "森（もり）でクマやトナカイに会（あ）えるかもしれないよ。"
+                    "text": "森（もり）でクマやトナカイに会（あ）えるかもしれないよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden2.wav"
                 },
                 {
                     "name": "スウェーデン（イケア）",
                     "image": "image/IKEA.jpg",
-                    "text": "イケア（IKEA）の家具（かぐ）をつくる、デザインの国だよ。"
+                    "text": "イケア（IKEA）の家具（かぐ）をつくる、デザインの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden3.wav"
                 },
             ],
             "Estonia":[
                 {
                     "name": "エストニア",
                     "image": "image/森.jpg",
-                    "text": "森（もり）と湖（みずうみ）がたくさんある、\n自然（しぜん）あふれる国だよ。"
+                    "text": "森（もり）と湖（みずうみ）がたくさんある、\n自然（しぜん）あふれる国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia1.wav"
                 },
                 {
                     "name": "エストニア（お菓子）",
                     "image": "image/カレフ.jpg",
-                    "text": "かわいいお菓子（おかし）「カレフ」を楽しめるよ。"
+                    "text": "かわいいお菓子（おかし）「カレフ」を楽しめるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia2.wav"
                 },
                 {
                     "name": "エストニア（教育）",
                     "image": "image/図書館.jpg",
-                    "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。"
+                    "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia3.wav"
                 },
             ],
             "Oranda":[
                 {
                     "name": "オランダ",
                     "image": "image/チューリップ.jpg",
-                    "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。"
+                    "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda1.wav"
             }   ,
                 {
                     "name": "オランダ（自転車）",
                     "image": "image/自転車.jpg",
-                    "text": "自転車に乗る人が多くて、どこへでもペダルでおさんぽできるよ。"
+                    "text": "自転車に乗る人が多くて、どこへでもペダルでおさんぽできるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda2.wav"
                 },
                 {
                     "name": "オランダ（運河）",
                     "image": "image/街並み.jpg",
-                    "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
+                    "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda3.wav"
                 },
             ],
             "Germany":[
                 {
                     "name": "ドイツ",
                     "image": "image/城.jpg",
-                    "text": "お城（しろ）が山（やま）や川（かわ）のそばにたくさんあるよ。"
+                    "text": "お城（しろ）が山（やま）や川（かわ）のそばにたくさんあるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany1.wav"
                 },
                 {
                     "name": "ドイツ（食べ物）",
                     "image": "image/ソーセージ.jpg",
-                    "text": "ソーセージやプレッツェルをもぐもぐおいしく食（た）べられるよ。"
+                    "text": "ソーセージやプレッツェルをもぐもぐおいしく食（た）べられるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany2.wav"
                 },
                 {
                     "name": "ドイツ（街）",
                     "image": "image/ド街並み.jpg",
-                    "text": "森の中を走る汽車（きしゃ）や、\n大きなクリスマスマーケットがあるよ。"
+                    "text": "森の中を走る汽車（きしゃ）や、\n大きなクリスマスマーケットがあるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany3.wav"
                 },
             ],
             "Denmark":[
                 {
                     "name": "デンマーク",
                     "image": "image/人魚.jpg",
-                    "text": "おとぎ話（ばなし）の人魚姫（ひめ）や\nお城（しろ）がある、メルヘンの国だよ。"
+                    "text": "おとぎ話（ばなし）の人魚姫（ひめ）や\nお城（しろ）がある、メルヘンの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark1.wav"
                 },
                 {
                     "name": "デンマーク（自転車）",
                     "image": "image/お城.jpg",    
-                    "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。"
+                    "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark2.wav"
                 },
                 {
                     "name": "デンマーク（レゴ）",
                     "image": "image/レゴ.jpg",
-                    "text": "レゴの本社（ほんしゃ）があって、\nブロックで遊（あそ）ぶのが大好きだよ。"
+                    "text": "レゴの本社（ほんしゃ）があって、\nブロックで遊（あそ）ぶのが大好きだよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark3.wav"
                 },
             ]
         }   
@@ -561,6 +578,11 @@ class BlockGameApp:
         #self.canvas.pack()
         self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
         self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
+        
+        self.audio.stop_bgm()
+        self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
+        self.audio.play_voice(selected_info["voice"])
+        
 
 
 
