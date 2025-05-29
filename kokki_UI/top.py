@@ -17,7 +17,7 @@ class BlockGameApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Block Game - Flag Edition")
+        self.root.title("こっきでわくわく")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
         # --- Configuration ---
@@ -45,13 +45,11 @@ class BlockGameApp:
         os.makedirs(self.output_dir, exist_ok=True)
 
         # --- Camera Setup ---
-        self.capture = cv2.VideoCapture(-1) # Try default camera
+        self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not self.capture.isOpened():
-            self.capture = cv2.VideoCapture(0) # Try explicitly camera 0
-            if not self.capture.isOpened():
-                messagebox.showerror("Error", "Cannot access the camera")
-                root.destroy()
-                return
+            messagebox.showerror("Error", "Cannot access the camera")
+            root.destroy()
+            return
 
         # --- YOLO Model ---
         try:
@@ -143,17 +141,61 @@ class BlockGameApp:
             self.canvas.config(bg="lightgrey")
             if self.bg_canvas_id and self.canvas.winfo_exists(): self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
-    
+            
     def draw_main_screen(self):
-        
         self.canvas.delete("all")
         self.current_screen = "main"
-        self.update_background_image()
+ 
+        # --- Main screen specific background ---
+        main_background_path = "image/background.jpg"
+        try:
+            if not os.path.exists(main_background_path):
+                print(f"ERROR: Main background image file not found: {main_background_path}")
+                self.canvas.config(bg="lightgrey") # Fallback color
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        pass
+                self.bg_tk = None
+                self.bg_canvas_id = None
+            else:
+                # Load and display the specific main background
+                main_bg_image_pil = Image.open(main_background_path)
+                main_bg_image_pil = main_bg_image_pil.resize((800, 600), Image.Resampling.LANCZOS)
+                # self.bg_tk needs to be updated for this specific background
+                self.bg_tk = ImageTk.PhotoImage(main_bg_image_pil)
+ 
+                # If a canvas ID for background exists, delete it to ensure clean redraw
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        self.bg_canvas_id = None # Reset if ID was invalid
+ 
+                self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+                self.canvas.lower(self.bg_canvas_id) # Send to back
+        except Exception as e:
+            print(f"Error setting main background image from {main_background_path}: {e}")
+            self.canvas.config(bg="lightgrey")
+            if self.bg_canvas_id and self.canvas.winfo_exists():
+                try:
+                    self.canvas.delete(self.bg_canvas_id)
+                except tk.TclError:
+                    pass
+            self.bg_tk = None
+            self.bg_canvas_id = None
+        # --- End of Main screen specific background ---
+ 
+        # The call to self.update_background_image() is removed if we want a fixed background for main_screen.
+        # If you still want the dynamic background based on last captured flag,
+        # then the above block should be removed and self.update_background_image() should be kept.
+        # For this request (fixed "image/background.jpg"), we use the block above.
 
-        self.canvas.create_text(400, 30, text="Legoooooo Flags!", font=("Helvetica", 24, "bold"), fill="black")
+        self.canvas.create_text(400, 30, text="こっきでわくわく", font=("Helvetica", 24, "bold"), fill="black")
         self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
         self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
-
+ 
         button_coords = {
             "Japan":   (10, top_position1, 250, top_position2),
             "Sweden":  (260, top_position1, 510, top_position2),
@@ -162,24 +204,25 @@ class BlockGameApp:
             "Germany": (260, bottom_position1, 510, bottom_position2),
             "Denmark": (520, bottom_position1, 770, bottom_position2)
         }
-        button_texts = {
-            "Japan": "にほん", "Sweden": "ｽｳｪｰﾃﾞﾝ", "Estonia": "ｴｽﾄﾆｱ",
-            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "ﾃﾞﾝﾏｰｸ"
-        }
+        # Use self.flag_names_jp for consistency in displayed text
+        button_texts = {name_en: self.flag_names_jp.get(name_en, name_en) for name_en in button_coords.keys()}
+ 
         text_y_offset_ratio = 0.4
-
         self.flag_photo_references.clear()
-
-        for flag_name, coords in button_coords.items():
+ 
+        for flag_name, coords in button_coords.items(): # flag_name here is the English key
             x1, y1, x2, y2 = coords
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
             btn_width = x2 - x1
             btn_height = y2 - y1
             text_y = y1 + (btn_height * text_y_offset_ratio)
-
+           
+            # Get the Japanese display text using the English key
+            display_text = button_texts[flag_name]
+ 
             captured_image_path = self.captured_images.get(flag_name)
-
+ 
             if captured_image_path and os.path.exists(captured_image_path):
                 try:
                     img = Image.open(captured_image_path)
@@ -191,18 +234,24 @@ class BlockGameApp:
                 except Exception as e:
                     print(f"Error displaying captured image {flag_name} from {captured_image_path}: {e}")
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="#FFCCCC", outline="black", stipple="gray25", tags=(flag_name, "button_fallback"))
-                    self.canvas.create_text(center_x, text_y, text=f"{button_texts[flag_name]}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
+                    # Use display_text for fallback
+                    self.canvas.create_text(center_x, text_y, text=f"{display_text}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
             else:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
                 self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
         
         if self.bg_canvas_id and self.canvas.winfo_exists():
             self.canvas.lower(self.bg_canvas_id)
-        
+
+        #戻るボタンなど追加
+        self.canvas.create_rectangle(240, 490, 530, 590, fill="red", width=2, tags="next_screen")
+        self.canvas.create_text(385, 540, text="くにのせつめいをみる", font=font_title2, fill="white")
+        self.canvas.create_rectangle(640, 490, 760, 590, fill="blue", width=2, tags="reset")
+        self.canvas.create_text(700, 540, text="りせっと", font=font_title2, fill="white")
+
         # === BGM再生（即時） ===
+        self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
-        
-        # 音声再生を画面描画後に遅延実行
         self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 
@@ -399,111 +448,127 @@ class BlockGameApp:
         self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
     def detail_screen(self): # Currently unused
-        
-
-# 国のデータ（画像ファイル・説明文）
+        # 国のデータ（画像ファイル・説明文）
         countries = {
             "Japan":[
                 {
                     "name": "にほん",
                     "image": "image/sushi.jpg",
-                    "text": "お寿司（すし）やおにぎりが大好きな、ごはんの国だよ。"
+                    "text": "お寿司（すし）やおにぎりが大好きな、ごはんの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan1.wav"
                 },
                 {
                     "name": "にほん（富士山）",
                     "image": "image/fuji.jpg",
-                    "text": "富士山（ふじさん）という大きな山がぽっこりそびえているよ。"
+                    "text": "富士山（ふじさん）という大きな山がぽっこりそびえているよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan2.wav"
                 },
                 {
                     "name": "にほん（春）",
                     "image": "image/Japan_town.jpg",
-                    "text": "春には桜（さくら）がたくさん咲（さ）いて、\nピンクの景色（けしき）だよ。"
+                    "text": "春には桜（さくら）がたくさん咲（さ）いて、\nピンクの景色（けしき）だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Japan/intro_Japan3.wav"
                 },
             ],
-    # 他の国を追加したければここに辞書を追加！
+        # 他の国を追加したければここに辞書を追加！
             "Sweden":[
                 {
                     "name": "スウェーデン",
                     "image": "image/オーロラ.jpg",
-                    "text": "オーロラが見（み）られる、星空（ほしぞら）がきれいな国だよ。"
+                    "text": "オーロラが見（み）られる、星空（ほしぞら）がきれいな国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden1.wav"
                 },
                 {
                     "name": "スウェーデン（動物）",
                     "image": "image/鹿.jpg",
-                    "text": "森（もり）でクマやトナカイに会（あ）えるかもしれないよ。"
+                    "text": "森（もり）でクマやトナカイに会（あ）えるかもしれないよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden2.wav"
                 },
                 {
                     "name": "スウェーデン（イケア）",
                     "image": "image/IKEA.jpg",
-                    "text": "イケア（IKEA）の家具（かぐ）をつくる、デザインの国だよ。"
+                    "text": "イケア（IKEA）の家具（かぐ）をつくる、デザインの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Sweden/intro_Sweden3.wav"
                 },
             ],
             "Estonia":[
                 {
                     "name": "エストニア",
                     "image": "image/森.jpg",
-                    "text": "森（もり）と湖（みずうみ）がたくさんある、\n自然（しぜん）あふれる国だよ。"
+                    "text": "森（もり）と湖（みずうみ）がたくさんある、\n自然（しぜん）あふれる国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia1.wav"
                 },
                 {
                     "name": "エストニア（お菓子）",
                     "image": "image/カレフ.jpg",
-                    "text": "かわいいお菓子（おかし）「カレフ」を楽しめるよ。"
+                    "text": "かわいいお菓子（おかし）「カレフ」を楽しめるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia2.wav"
                 },
                 {
                     "name": "エストニア（教育）",
                     "image": "image/図書館.jpg",
-                    "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。"
+                    "text": "デジタル大国（たいこく）で、\n学校の宿題（しゅくだい）もインターネットでできるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Estonia/intro_Estonia3.wav"
                 },
             ],
             "Oranda":[
                 {
                     "name": "オランダ",
                     "image": "image/チューリップ.jpg",
-                    "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。"
+                    "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda1.wav"
             }   ,
                 {
                     "name": "オランダ（自転車）",
                     "image": "image/自転車.jpg",
-                    "text": "自転車に乗る人が多くて、どこへでもペダルでおさんぽできるよ。"
+                    "text": "自転車に乗る人が多くて、どこへでもペダルでおさんぽできるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda2.wav"
                 },
                 {
                     "name": "オランダ（運河）",
                     "image": "image/街並み.jpg",
-                    "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。"
+                    "text": "運河（うんが）に小舟（こぶね）を浮かべて、水の上をわたれるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda3.wav"
                 },
             ],
             "Germany":[
                 {
                     "name": "ドイツ",
                     "image": "image/城.jpg",
-                    "text": "お城（しろ）が山（やま）や川（かわ）のそばにたくさんあるよ。"
+                    "text": "お城（しろ）が山（やま）や川（かわ）のそばにたくさんあるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany1.wav"
                 },
                 {
                     "name": "ドイツ（食べ物）",
                     "image": "image/ソーセージ.jpg",
-                    "text": "ソーセージやプレッツェルをもぐもぐおいしく食（た）べられるよ。"
+                    "text": "ソーセージやプレッツェルをもぐもぐおいしく食（た）べられるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany2.wav"
                 },
                 {
                     "name": "ドイツ（街）",
                     "image": "image/ド街並み.jpg",
-                    "text": "森の中を走る汽車（きしゃ）や、\n大きなクリスマスマーケットがあるよ。"
+                    "text": "森の中を走る汽車（きしゃ）や、\n大きなクリスマスマーケットがあるよ。",
+                    "voice": "audio/voiceset/introduction/intro_Germany/intro_Germany3.wav"
                 },
             ],
             "Denmark":[
                 {
                     "name": "デンマーク",
                     "image": "image/人魚.jpg",
-                    "text": "おとぎ話（ばなし）の人魚姫（ひめ）や\nお城（しろ）がある、メルヘンの国だよ。"
+                    "text": "おとぎ話（ばなし）の人魚姫（ひめ）や\nお城（しろ）がある、メルヘンの国だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark1.wav"
                 },
                 {
                     "name": "デンマーク（自転車）",
                     "image": "image/お城.jpg",    
-                    "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。"
+                    "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark2.wav"
                 },
                 {
                     "name": "デンマーク（レゴ）",
                     "image": "image/レゴ.jpg",
-                    "text": "レゴの本社（ほんしゃ）があって、\nブロックで遊（あそ）ぶのが大好きだよ。"
+                    "text": "レゴの本社（ほんしゃ）があって、\nブロックで遊（あそ）ぶのが大好きだよ。",
+                    "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark3.wav"
                 },
             ]
         }   
@@ -539,7 +604,7 @@ class BlockGameApp:
         flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         
         self.canvas.create_text(400, 50, text=f"{flag_name_jp} について", font=font_title, fill="black")
-        self.canvas.create_text(680, 100, text="こっかがながれているよ！" ,font=font_subject)
+
     # 画像の参照保持用リスト
         #image_refs = []
 
@@ -561,8 +626,17 @@ class BlockGameApp:
         #self.canvas.pack()
         self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
         self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
+        
+        self.audio.stop_bgm()
+        self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
+        self.audio.play_voice(selected_info["voice"])
+        
 
-
+    def reset_image(self):
+        for flag in self.captured_images:
+            self.captured_images[flag]=None
+        print("All caputured flags have been reset.")
+        self.draw_main_screen()
 
 
     def mouse_event(self, event):
@@ -579,6 +653,11 @@ class BlockGameApp:
         print(f"Clicked on item with tags: {tags}, primary tag: {tag} on screen: {self.current_screen}")
 
         if self.current_screen == "main":
+
+            if tag == "next_screen":
+                self.detail_screen()
+            elif tag == "reset":
+                self.reset_image()
             for num, name in self.flag_map.items():
                 if tag == name:
                     self.blocknumber = num
@@ -590,6 +669,8 @@ class BlockGameApp:
                     else:
                         self.draw_next_screen()
                     return  # 必須：1つ見つかったら終了
+                
+                    
 
             print(f"Unhandled click on main screen with tag: {tag}")
 
