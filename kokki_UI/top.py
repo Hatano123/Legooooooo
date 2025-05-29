@@ -8,7 +8,11 @@ from ultralytics import YOLO
 from rembg import remove
 import time
 import io # Needed for processing rembg output
-
+"""
+#どの国の国旗か教える機能
+国旗をしばらく写真に写すと説明がでる
+留学に言った人の顔
+"""
 class BlockGameApp:
     def __init__(self, root):
         self.root = root
@@ -36,7 +40,7 @@ class BlockGameApp:
         print("カメラを起動しています...")
         camera_start_time = time.time()
         
-        self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        self.capture = cv2.VideoCapture(1, cv2.CAP_DSHOW)
         if not self.capture.isOpened():
             messagebox.showerror("Error", "Cannot access the camera")
             root.destroy()
