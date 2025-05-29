@@ -32,12 +32,19 @@ class BlockGameApp:
         self.output_dir = "output_images"
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # --- Camera Setup ---
+        # --- Camera Setup with timing ---
+        print("カメラを起動しています...")
+        camera_start_time = time.time()
+        
         self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not self.capture.isOpened():
             messagebox.showerror("Error", "Cannot access the camera")
             root.destroy()
             return
+        
+        camera_end_time = time.time()
+        camera_init_time = camera_end_time - camera_start_time
+        print(f"カメラの起動完了！ 所要時間: {camera_init_time:.2f}秒")
 
         # --- YOLO Model ---
         try:
