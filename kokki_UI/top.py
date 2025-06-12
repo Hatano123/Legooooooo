@@ -244,9 +244,9 @@ class BlockGameApp:
             self.canvas.lower(self.bg_canvas_id)
 
         #戻るボタンなど追加
-        self.canvas.create_rectangle(240, 490, 530, 590, fill="red", width=2, tags="next_screen")
+        self.canvas.create_rectangle(230, 490, 540, 590, fill="red", width=2, tags="next_screen")
         self.canvas.create_text(385, 540, text="くにのせつめいをみる", font=font_title2, fill="white")
-        self.canvas.create_rectangle(640, 490, 760, 590, fill="blue", width=2, tags="reset")
+        self.canvas.create_rectangle(630, 490, 770, 590, fill="blue", width=2, tags="reset")
         self.canvas.create_text(700, 540, text="りせっと", font=font_title2, fill="white")
 
         # === BGM再生（即時） ===
@@ -446,6 +446,115 @@ class BlockGameApp:
                                 tags="back_to_main_from_result")
         
         self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
+    
+    def before_detail_screen(self):
+        self.current_screen = "before_detail"
+        self.canvas.delete("all")
+        self.image_refs.clear()
+
+        main_background_path = "image/background.jpg"
+        try:
+            if not os.path.exists(main_background_path):
+                print(f"ERROR: Main background image file not found: {main_background_path}")
+                self.canvas.config(bg="lightgrey") # Fallback color
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        pass
+                self.bg_tk = None
+                self.bg_canvas_id = None
+            else:
+                # Load and display the specific main background
+                main_bg_image_pil = Image.open(main_background_path)
+                main_bg_image_pil = main_bg_image_pil.resize((800, 600), Image.Resampling.LANCZOS)
+                # self.bg_tk needs to be updated for this specific background
+                self.bg_tk = ImageTk.PhotoImage(main_bg_image_pil)
+ 
+                # If a canvas ID for background exists, delete it to ensure clean redraw
+                if self.bg_canvas_id and self.canvas.winfo_exists():
+                    try:
+                        self.canvas.delete(self.bg_canvas_id)
+                    except tk.TclError:
+                        self.bg_canvas_id = None # Reset if ID was invalid
+ 
+                self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+                self.canvas.lower(self.bg_canvas_id) # Send to back
+        except Exception as e:
+            print(f"Error setting main background image from {main_background_path}: {e}")
+            self.canvas.config(bg="lightgrey")
+            if self.bg_canvas_id and self.canvas.winfo_exists():
+                try:
+                    self.canvas.delete(self.bg_canvas_id)
+                except tk.TclError:
+                    pass
+            self.bg_tk = None
+            self.bg_canvas_id = None
+        # --- End of Main screen specific background ---
+ 
+        # The call to self.update_background_image() is removed if we want a fixed background for main_screen.
+        # If you still want the dynamic background based on last captured flag,
+        # then the above block should be removed and self.update_background_image() should be kept.
+        # For this request (fixed "image/background.jpg"), we use the block above.
+
+        self.canvas.create_text(400, 30, text="くにのせつめいがみられるよ！", font=("Helvetica", 24, "bold"), fill="black")
+        self.canvas.create_text(400, 70, text="みたいくにのせつめいをクリックしてね！", font=font_subject, fill="black")
+ 
+        button_coords = {
+            "Japan":   (10, top_position1, 250, top_position2),
+            "Sweden":  (260, top_position1, 510, top_position2),
+            "Estonia": (520, top_position1, 770, top_position2),
+            "Oranda": (10, bottom_position1, 250, bottom_position2),
+            "Germany": (260, bottom_position1, 510, bottom_position2),
+            "Denmark": (520, bottom_position1, 770, bottom_position2)
+        }
+        # Use self.flag_names_jp for consistency in displayed text
+        button_texts = {name_en: self.flag_names_jp.get(name_en, name_en) for name_en in button_coords.keys()}
+ 
+        text_y_offset_ratio = 0.4
+        self.flag_photo_references.clear()
+ 
+        for flag_name, coords in button_coords.items(): # flag_name here is the English key
+            x1, y1, x2, y2 = coords
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            btn_width = x2 - x1
+            btn_height = y2 - y1
+            text_y = y1 + (btn_height * text_y_offset_ratio)
+           
+            # Get the Japanese display text using the English key
+            display_text = button_texts[flag_name]
+ 
+            captured_image_path = self.captured_images.get(flag_name)
+ 
+            if captured_image_path and os.path.exists(captured_image_path):
+                try:
+                    img = Image.open(captured_image_path)
+                    img.thumbnail((btn_width - 10, btn_height - 10), Image.Resampling.LANCZOS)
+                    img_tk = ImageTk.PhotoImage(img)
+                    self.flag_photo_references[flag_name] = img_tk
+                    self.canvas.create_image(center_x, center_y, anchor=tk.CENTER, image=img_tk, tags=(flag_name, "flag_display"))
+                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="green", width=2, tags=(flag_name, "flag_border"))
+                except Exception as e:
+                    print(f"Error displaying captured image {flag_name} from {captured_image_path}: {e}")
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#FFCCCC", outline="black", stipple="gray25", tags=(flag_name, "button_fallback"))
+                    # Use display_text for fallback
+                    self.canvas.create_text(center_x, text_y, text=f"{display_text}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
+            else:
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
+                self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
+        
+        if self.bg_canvas_id and self.canvas.winfo_exists():
+            self.canvas.lower(self.bg_canvas_id)
+
+        #戻るボタンなど追加
+        self.canvas.create_rectangle(230, 490, 540, 590, fill="blue", width=2, tags="back_to_main")
+        self.canvas.create_text(385, 540, text="もどる", font=font_title2, fill="white")
+
+        # === BGM再生（即時） ===
+        self.audio.stop_bgm()
+        self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
+        self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
     def detail_screen(self): # Currently unused
         # 国のデータ（画像ファイル・説明文）
@@ -641,54 +750,77 @@ class BlockGameApp:
 
     def mouse_event(self, event):
         x, y = event.x, event.y
+    # クリックされた座標にあるすべてのアイテムを取得し、順序を反転して手前のものから調べる
         items = self.canvas.find_overlapping(x, y, x, y)
-        if not items:
+
+    # ログ出力でitemsの内容を確認する
+    # print(f"Items at click ({x},{y}): {items}") 
+
+        target_tag = None
+        for item_id in reversed(items): # 最も手前にあるアイテムから順に調べる
+            tags = self.canvas.gettags(item_id)
+            if tags:
+            # 最初に意味のあるタグが見つかったらそれを採用
+            # 'current' や 'button_default', 'text_default' などの内部タグや詳細タグではなく、
+            # 処理したい主要なタグを優先して見つける
+                if "next_screen" in tags:
+                    target_tag = "next_screen"
+                    break
+                elif "reset" in tags:
+                    target_tag = "reset"
+                    break
+            # フラッグの名前タグも同様にチェック
+                for flag_name_en in self.flag_map.values():
+                    if flag_name_en in tags:
+                        target_tag = flag_name_en
+                        break
+                if target_tag: # フラッグタグが見つかったらループを抜ける
+                    break
+
+        if not target_tag:
+        # 処理すべきタグが見つからなかった場合
+        # print(f"No relevant tag found for click at ({x},{y}). All tags for items: {[self.canvas.gettags(item) for item in items]}")
             return
 
-        tags = self.canvas.gettags(items[-1])
-        if not tags:
-            return
-
-        tag = tags[0]
-        print(f"Clicked on item with tags: {tags}, primary tag: {tag} on screen: {self.current_screen}")
+        print(f"Clicked on item with target tag: {target_tag} on screen: {self.current_screen}")
 
         if self.current_screen == "main":
-
-            if tag == "next_screen":
-                self.detail_screen()
-            elif tag == "reset":
+            if target_tag == "next_screen":
+                self.before_detail_screen()
+            elif target_tag == "reset":
                 self.reset_image()
-            for num, name in self.flag_map.items():
-                if tag == name:
-                    self.blocknumber = num
-                    print(f"Selected flag: {name} (Block number: {self.blocknumber})")
+            elif target_tag in self.flag_map.values(): # 検出されたタグがフラッグ名かチェック
+                self.blocknumber = next(num for num, name in self.flag_map.items() if name == target_tag)
+                print(f"Selected flag: {target_tag} (Block number: {self.blocknumber})")
 
-                    # ここで分岐：画像がキャプチャ済みなら詳細画面、それ以外は撮影画面
-                    if self.captured_images.get(name):
-                        self.detail_screen()
-                    else:
-                        self.draw_next_screen()
-                    return  # 必須：1つ見つかったら終了
-                
-                    
-
-            print(f"Unhandled click on main screen with tag: {tag}")
-
+                if self.captured_images.get(target_tag):
+                    self.detail_screen()
+                else:
+                    self.draw_next_screen()
+            else:
+                print(f"Unhandled click on main screen with tag: {target_tag}")
+    # ... その他の current_screen の処理 ...
         elif self.current_screen == "next":
-            if tag == "shutter":
+            if tags == "shutter":
                 print("Shutter button clicked")
                 self.capture_shutter()
-            elif tag == "back_to_main":
+            elif tags == "back_to_main":
                 print("Back to main clicked from next screen")
                 self.draw_main_screen()
 
         elif self.current_screen == "result":
-            if tag == "back_to_main_from_result":
+            if tags == "back_to_main_from_result":
                 print("Back to main from result screen clicked")
                 self.draw_main_screen()
 
+        elif self.current_screen == "before_detail":
+            if tags == "back_to_main":
+                self.draw_main_screen()
+                
+                
+
         elif self.current_screen == "detail":
-            if tag == "back_to_main":
+            if tags == "back_to_main":
                 print("Back to main from detail clicked")
                 self.draw_main_screen()
 
