@@ -452,104 +452,104 @@ class BlockGameApp:
         self.canvas.delete("all")
         self.image_refs.clear()
 
-        main_background_path = "image/background.jpg"
+        # 背景画像の設定 (キャプチャ画面専用またはデフォルト)
+        capture_bg_path = "image/background_capture.jpg"
         try:
-            if not os.path.exists(main_background_path):
-                print(f"ERROR: Main background image file not found: {main_background_path}")
-                self.canvas.config(bg="lightgrey") # Fallback color
-                if self.bg_canvas_id and self.canvas.winfo_exists():
-                    try:
-                        self.canvas.delete(self.bg_canvas_id)
-                    except tk.TclError:
-                        pass
-                self.bg_tk = None
-                self.bg_canvas_id = None
+            bg_image_path_to_load = capture_bg_path if os.path.exists(capture_bg_path) else "image/background.jpg"
+            if not os.path.exists(bg_image_path_to_load):
+                print(f"Critical: Fallback background {bg_image_path_to_load} not found.")
+                self.canvas.config(bg="lightgrey")
             else:
-                # Load and display the specific main background
-                main_bg_image_pil = Image.open(main_background_path)
-                main_bg_image_pil = main_bg_image_pil.resize((800, 600), Image.Resampling.LANCZOS)
-                # self.bg_tk needs to be updated for this specific background
-                self.bg_tk = ImageTk.PhotoImage(main_bg_image_pil)
- 
-                # If a canvas ID for background exists, delete it to ensure clean redraw
-                if self.bg_canvas_id and self.canvas.winfo_exists():
-                    try:
-                        self.canvas.delete(self.bg_canvas_id)
-                    except tk.TclError:
-                        self.bg_canvas_id = None # Reset if ID was invalid
- 
-                self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
-                self.canvas.lower(self.bg_canvas_id) # Send to back
+                bg_image = Image.open(bg_image_path_to_load)
+                bg_image = bg_image.resize((800, 600), Image.Resampling.LANCZOS)
+                self.bg_next_screen_tk = ImageTk.PhotoImage(bg_image) # 参照を保持
+                self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_next_screen_tk)
+                self.canvas.lower(self.bg_next_screen_tk) # 背景なので一番下に
         except Exception as e:
-            print(f"Error setting main background image from {main_background_path}: {e}")
+            print(f"Error loading capture background: {e}")
             self.canvas.config(bg="lightgrey")
-            if self.bg_canvas_id and self.canvas.winfo_exists():
-                try:
-                    self.canvas.delete(self.bg_canvas_id)
-                except tk.TclError:
-                    pass
-            self.bg_tk = None
-            self.bg_canvas_id = None
-        # --- End of Main screen specific background ---
- 
-        # The call to self.update_background_image() is removed if we want a fixed background for main_screen.
-        # If you still want the dynamic background based on last captured flag,
-        # then the above block should be removed and self.update_background_image() should be kept.
-        # For this request (fixed "image/background.jpg"), we use the block above.
 
-        self.canvas.create_text(400, 30, text="くにのせつめいがみられるよ！", font=("Helvetica", 24, "bold"), fill="black")
-        self.canvas.create_text(400, 70, text="みたいくにのせつめいをクリックしてね！", font=font_subject, fill="black")
- 
-        button_coords = {
-            "Japan":   (10, top_position1, 250, top_position2),
-            "Sweden":  (260, top_position1, 510, top_position2),
-            "Estonia": (520, top_position1, 770, top_position2),
-            "Oranda": (10, bottom_position1, 250, bottom_position2),
-            "Germany": (260, bottom_position1, 510, bottom_position2),
-            "Denmark": (520, bottom_position1, 770, bottom_position2)
-        }
-        # Use self.flag_names_jp for consistency in displayed text
-        button_texts = {name_en: self.flag_names_jp.get(name_en, name_en) for name_en in button_coords.keys()}
- 
-        text_y_offset_ratio = 0.4
-        self.flag_photo_references.clear()
- 
-        for flag_name, coords in button_coords.items(): # flag_name here is the English key
-            x1, y1, x2, y2 = coords
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-            btn_width = x2 - x1
-            btn_height = y2 - y1
-            text_y = y1 + (btn_height * text_y_offset_ratio)
-           
-            # Get the Japanese display text using the English key
-            display_text = button_texts[flag_name]
- 
-            captured_image_path = self.captured_images.get(flag_name)
- 
-            if captured_image_path and os.path.exists(captured_image_path):
-                try:
-                    img = Image.open(captured_image_path)
-                    img.thumbnail((btn_width - 10, btn_height - 10), Image.Resampling.LANCZOS)
-                    img_tk = ImageTk.PhotoImage(img)
-                    self.flag_photo_references[flag_name] = img_tk
-                    self.canvas.create_image(center_x, center_y, anchor=tk.CENTER, image=img_tk, tags=(flag_name, "flag_display"))
-                    self.canvas.create_rectangle(x1, y1, x2, y2, outline="green", width=2, tags=(flag_name, "flag_border"))
-                except Exception as e:
-                    print(f"Error displaying captured image {flag_name} from {captured_image_path}: {e}")
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#FFCCCC", outline="black", stipple="gray25", tags=(flag_name, "button_fallback"))
-                    # Use display_text for fallback
-                    self.canvas.create_text(center_x, text_y, text=f"{display_text}\n(表示エラー)", font=font_subject, fill="black", tags=(flag_name, "text_fallback"))
-            else:
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
-                self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
+        self.canvas.create_text(400, 30, text=" せつめいを みたいくに を つくってね", font=font_subject, fill="black")
+
+
+        # カメラプレビューエリアの設定
+        self.cam_x = 400  # プレビューエリアの中心 x
+        self.cam_y = 250  # プレビューエリアの中心 y
+        self.cam_width = 300 # プレビューエリア全体の幅 (この中にアスペクト比保持で表示)
+        self.cam_height = 300 # プレビューエリア全体の高さ
         
-        if self.bg_canvas_id and self.canvas.winfo_exists():
-            self.canvas.lower(self.bg_canvas_id)
+        # プレビューエリアの背景 (黒い四角)
+        self.canvas.create_rectangle(
+            self.cam_x - self.cam_width // 2, self.cam_y - self.cam_height // 2,
+            self.cam_x + self.cam_width // 2, self.cam_y + self.cam_height // 2,
+            fill="black", outline="grey", tags="camera_bg_rect" # このタグは必須ではない
+        )
+        # カメラ準備中のテキスト (update_frameで画像表示時に削除される)
+        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
+        self.cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
+        self.image_tk = None          # update_frameでPhotoImage参照を保持
 
-        #戻るボタンなど追加
-        self.canvas.create_rectangle(230, 490, 540, 590, fill="blue", width=2, tags="back_to_main")
-        self.canvas.create_text(385, 540, text="もどる", font=font_title2, fill="white")
+        # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
+        # ターゲットのガイド枠アスペクト比 (幅/高さ)
+        target_guide_aspect_ratio_wh = 12.0 / 7.0 
+
+        # プレビューエリア (self.cam_width x self.cam_height) 内に
+        # 収まる最大の7:12の枠を計算する。
+        # (例: プレビューエリアが300x300の場合)
+
+        # 1. プレビューエリアの高さを基準に、ターゲットアスペクト比から枠の幅を計算
+        guide_w_if_h_is_max = int(self.cam_height * target_guide_aspect_ratio_wh) # 300 * 12/7 = 約514
+        
+        # 2. プレビューエリアの幅を基準に、ターゲットアスペクト比から枠の高さを計算
+        guide_h_if_w_is_max = int(self.cam_width / target_guide_aspect_ratio_wh) # 300 / (12/7) = 175
+
+        # プレビューエリアに収まるように最終的なガイド枠のサイズを決定
+        if guide_w_if_h_is_max <= self.cam_width:
+            # 高さいっぱいの枠がプレビューエリア幅に収まる場合 (通常はこちらにはならない)
+            final_guide_height_on_preview = self.cam_height # 300
+            final_guide_width_on_preview = guide_w_if_h_is_max # 約514 (これは cam_width 300 を超える)
+        else:
+            # 幅いっぱいの枠がプレビューエリア高さに収まる場合 (こちらが期待されるケース)
+            final_guide_width_on_preview = self.cam_width # 300
+            final_guide_height_on_preview = guide_h_if_w_is_max # 175
+        
+        # ガイド枠の座標を計算 (プレビューエリアの中央に配置)
+        # self.cam_x, self.cam_y はプレビューエリアの中心
+        guide_x1 = self.cam_x - final_guide_width_on_preview // 2
+        guide_y1 = self.cam_y - final_guide_height_on_preview // 2
+        guide_x2 = self.cam_x + final_guide_width_on_preview // 2
+        guide_y2 = self.cam_y + final_guide_height_on_preview // 2
+
+        # ガイド枠をキャンバスに描画 (黄色い線)
+        self.canvas.create_rectangle(
+            guide_x1, guide_y1, guide_x2, guide_y2,
+            outline="yellow", width=2, tags="crop_guide_rect" # このタグが重要
+        )
+        # プレビュー上のガイド枠の絶対座標 (キャンバス座標系) を保存
+        self.preview_crop_guide_coords = (guide_x1, guide_y1, guide_x2, guide_y2)
+        
+        # デバッグ用出力
+        print(f"DEBUG (draw_next_screen): Preview Area (WxH): {self.cam_width}x{self.cam_height} at ({self.cam_x},{self.cam_y})")
+        print(f"DEBUG (draw_next_screen): Final Guide Frame Size on Preview (WxH): {final_guide_width_on_preview}x{final_guide_height_on_preview}")
+        print(f"DEBUG (draw_next_screen): Final Guide Frame Coords on Canvas (x1,y1,x2,y2): {self.preview_crop_guide_coords}")
+        # --- ガイド枠描画ここまで ---
+
+        # シャッターボタン
+        #self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
+        #self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
+
+        # 戻るボタン
+        self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main")
+        self.canvas.create_text(150, 555, text="← もどる", font=font_subject, fill="black", tags="back_to_main")
+
+        # メッセージ表示用テキストオブジェクト (最初は空)
+        self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
+        
+
+        #self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
+        self.audio.play_voice("audio/voiceset/make/make_sample.wav")
+
+
 
         # === BGM再生（即時） ===
         self.audio.stop_bgm()
@@ -756,26 +756,37 @@ class BlockGameApp:
     # ログ出力でitemsの内容を確認する
     # print(f"Items at click ({x},{y}): {items}") 
 
+        clicked_tags = self.canvas.gettags((items[-1]))
+
         target_tag = None
-        for item_id in reversed(items): # 最も手前にあるアイテムから順に調べる
-            tags = self.canvas.gettags(item_id)
-            if tags:
+        for tag_in_list in reversed(clicked_tags): # 最も手前にあるアイテムから順に調べる
+            
             # 最初に意味のあるタグが見つかったらそれを採用
             # 'current' や 'button_default', 'text_default' などの内部タグや詳細タグではなく、
             # 処理したい主要なタグを優先して見つける
-                if "next_screen" in tags:
+            if tag_in_list == "next_screen":
                     target_tag = "next_screen"
                     break
-                elif "reset" in tags:
+            elif tag_in_list == "reset":
                     target_tag = "reset"
                     break
+            elif tag_in_list == "shutter": # シャッターボタンのタグも追加
+                target_tag = "shutter"
+                break
+            elif tag_in_list == "back_to_main": # もどるボタンのタグも追加
+                target_tag = "back_to_main"
+                break
+            elif tag_in_list == "back_to_main_from_result": # 結果画面からもどるボタンのタグも追加
+                target_tag = "back_to_main_from_result"
+                break
+
             # フラッグの名前タグも同様にチェック
-                for flag_name_en in self.flag_map.values():
-                    if flag_name_en in tags:
-                        target_tag = flag_name_en
-                        break
-                if target_tag: # フラッグタグが見つかったらループを抜ける
+            for flag_name_en in self.flag_map.values():
+                if tag_in_list == flag_name_en:
+                    target_tag = flag_name_en
                     break
+            if target_tag: # フラッグタグが見つかったらループを抜ける
+                break
 
         if not target_tag:
         # 処理すべきタグが見つからなかった場合
@@ -801,26 +812,24 @@ class BlockGameApp:
                 print(f"Unhandled click on main screen with tag: {target_tag}")
     # ... その他の current_screen の処理 ...
         elif self.current_screen == "next":
-            if tags == "shutter":
+            if "shutter" in clicked_tags:
                 print("Shutter button clicked")
                 self.capture_shutter()
-            elif tags == "back_to_main":
+            elif "back_to_main" in clicked_tags:
                 print("Back to main clicked from next screen")
                 self.draw_main_screen()
 
         elif self.current_screen == "result":
-            if tags == "back_to_main_from_result":
+            if "back_to_main_from_result" in clicked_tags:
                 print("Back to main from result screen clicked")
                 self.draw_main_screen()
 
         elif self.current_screen == "before_detail":
-            if tags == "back_to_main":
+            if  "back_to_main" in clicked_tags:
                 self.draw_main_screen()
-                
-                
 
         elif self.current_screen == "detail":
-            if tags == "back_to_main":
+            if "back_to_main" in clicked_tags:
                 print("Back to main from detail clicked")
                 self.draw_main_screen()
 
@@ -1046,7 +1055,7 @@ class BlockGameApp:
             self.frame_count += 1
             self.last_frame = frame # 元解像度のフレームを保持
 
-            if self.current_screen == "next" and self.canvas.winfo_exists(): # Ensure canvas is still there
+            if (self.current_screen == "next" or self.current_screen == "before_detail") and self.canvas.winfo_exists(): # Ensure canvas is still there
                 try:
                     frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
                     frame_image_pil = Image.fromarray(frame_rgb) # 元のフレームのPILイメージ
