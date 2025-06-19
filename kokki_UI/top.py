@@ -1,34 +1,35 @@
-
 import tkinter as tk
 from tkinter import messagebox, font
-from PIL import Image, ImageTk # Removed ImageFont as it wasn't used
+from PIL import Image, ImageTk
 import cv2
 import numpy as np
 import os
 from ultralytics import YOLO
 from rembg import remove
 import time
-import io # Needed for processing rembg output
-import shutil # For copying file in trim_transparent_area
+import io
+import shutil
 from Audio import Audio
 import random
 
 class BlockGameApp:
-    
+
     def __init__(self, root):
         self.root = root
         self.root.title("こっきでわくわく")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
+
         # --- Configuration ---
         self.flag_map = {
             0: "Japan", 1: "Sweden", 2: "Estonia",
             3: "Oranda", 4: "Germany", 5: "Denmark"
         }
-        self.flag_names_jp = { 
+        self.flag_names_jp = {
             "Japan": "日本", "Sweden": "スウェーデン", "Estonia": "エストニア",
-            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "デンマーク" }
-        
+            "Oranda": "オランダ", "Germany": "ドイツ", "Denmark": "デンマーク"
+        }
+
         # Stores the PATH to the final processed image, or None
         self.captured_images = {flag: None for flag in self.flag_map.values()}
 
@@ -62,11 +63,11 @@ class BlockGameApp:
             print(f"Model Classes Found: {model_classes_set}")
             print(f"Expected Classes: {expected_classes_set}")
             if not expected_classes_set.issubset(model_classes_set):
-                 missing = expected_classes_set - model_classes_set
-                 extra = model_classes_set - expected_classes_set
-                 msg = f"Model class mismatch!\nMissing: {missing}\nUnexpected: {extra}\nCheck model and flag_map."
-                 messagebox.showwarning("Model Warning", msg)
-                 print(f"WARNING: {msg}") # Also print to console
+                missing = expected_classes_set - model_classes_set
+                extra = model_classes_set - expected_classes_set
+                msg = f"Model class mismatch!\nMissing: {missing}\nUnexpected: {extra}\nCheck model and flag_map."
+                messagebox.showwarning("Model Warning", msg)
+                print(f"WARNING: {msg}") # Also print to console
 
         except Exception as e:
             messagebox.showerror("YOLO Error", f"Failed to load YOLO model 'Rebest.pt': {e}")
@@ -88,6 +89,12 @@ class BlockGameApp:
         # Store PhotoImage references for captured flags to prevent garbage collection
         self.flag_photo_references = {}
 
+        # Explanation screen specific variables
+        self.explanation_detection_count = 0
+        self.last_detected_explanation_flag = None
+        self.explanation_screen_message_id = None
+        self.explanation_cam_feed_image_id = None # Separate ID for explanation screen camera feed
+
         # Draw the initial screen
         self.draw_main_screen()
 
@@ -103,8 +110,8 @@ class BlockGameApp:
 
         last_captured_flag = None
         for flag_name in self.flag_map.values():
-             if self.captured_images.get(flag_name):
-                 last_captured_flag = flag_name
+            if self.captured_images.get(flag_name):
+                last_captured_flag = flag_name
 
         if last_captured_flag:
             potential_path = f"image/{last_captured_flag}.jpg"
@@ -126,13 +133,13 @@ class BlockGameApp:
             self.bg_tk = ImageTk.PhotoImage(new_bg_image)
 
             if self.bg_canvas_id and self.canvas.winfo_exists():
-                 try:
+                try:
                     self.canvas.itemconfig(self.bg_canvas_id, image=self.bg_tk)
-                 except tk.TclError:
+                except tk.TclError:
                     print("Warning: Background canvas item not found, creating new one.")
                     self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
             else:
-                 self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
+                self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
 
             self.canvas.lower(self.bg_canvas_id)
 
@@ -141,11 +148,16 @@ class BlockGameApp:
             self.canvas.config(bg="lightgrey")
             if self.bg_canvas_id and self.canvas.winfo_exists(): self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
-            
+
     def draw_main_screen(self):
         self.canvas.delete("all")
         self.current_screen = "main"
- 
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
+
         # --- Main screen specific background ---
         main_background_path = "image/background.jpg"
         try:
@@ -163,16 +175,14 @@ class BlockGameApp:
                 # Load and display the specific main background
                 main_bg_image_pil = Image.open(main_background_path)
                 main_bg_image_pil = main_bg_image_pil.resize((800, 600), Image.Resampling.LANCZOS)
-                # self.bg_tk needs to be updated for this specific background
                 self.bg_tk = ImageTk.PhotoImage(main_bg_image_pil)
- 
-                # If a canvas ID for background exists, delete it to ensure clean redraw
+
                 if self.bg_canvas_id and self.canvas.winfo_exists():
                     try:
                         self.canvas.delete(self.bg_canvas_id)
                     except tk.TclError:
                         self.bg_canvas_id = None # Reset if ID was invalid
- 
+
                 self.bg_canvas_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_tk)
                 self.canvas.lower(self.bg_canvas_id) # Send to back
         except Exception as e:
@@ -186,16 +196,11 @@ class BlockGameApp:
             self.bg_tk = None
             self.bg_canvas_id = None
         # --- End of Main screen specific background ---
- 
-        # The call to self.update_background_image() is removed if we want a fixed background for main_screen.
-        # If you still want the dynamic background based on last captured flag,
-        # then the above block should be removed and self.update_background_image() should be kept.
-        # For this request (fixed "image/background.jpg"), we use the block above.
 
         self.canvas.create_text(400, 30, text="こっきでわくわく", font=("Helvetica", 24, "bold"), fill="black")
         self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
         self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
- 
+
         button_coords = {
             "Japan":   (10, top_position1, 250, top_position2),
             "Sweden":  (260, top_position1, 510, top_position2),
@@ -206,10 +211,10 @@ class BlockGameApp:
         }
         # Use self.flag_names_jp for consistency in displayed text
         button_texts = {name_en: self.flag_names_jp.get(name_en, name_en) for name_en in button_coords.keys()}
- 
+
         text_y_offset_ratio = 0.4
         self.flag_photo_references.clear()
- 
+
         for flag_name, coords in button_coords.items(): # flag_name here is the English key
             x1, y1, x2, y2 = coords
             center_x = (x1 + x2) // 2
@@ -217,12 +222,12 @@ class BlockGameApp:
             btn_width = x2 - x1
             btn_height = y2 - y1
             text_y = y1 + (btn_height * text_y_offset_ratio)
-           
+
             # Get the Japanese display text using the English key
             display_text = button_texts[flag_name]
- 
+
             captured_image_path = self.captured_images.get(flag_name)
- 
+
             if captured_image_path and os.path.exists(captured_image_path):
                 try:
                     img = Image.open(captured_image_path)
@@ -239,19 +244,35 @@ class BlockGameApp:
             else:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ADD8E6", outline="black", stipple="gray50", tags=(flag_name, "button_default"))
                 self.canvas.create_text(center_x, text_y, text=button_texts[flag_name], font=font_title2, fill="black", tags=(flag_name, "text_default"))
-        
+
         if self.bg_canvas_id and self.canvas.winfo_exists():
             self.canvas.lower(self.bg_canvas_id)
-        
+
+        # --- 新しい「せつめい」ボタンの追加 ---
+        explanation_btn_x1 = 600
+        explanation_btn_y1 = 530
+        explanation_btn_x2 = 750
+        explanation_btn_y2 = 580
+        self.canvas.create_rectangle(explanation_btn_x1, explanation_btn_y1, explanation_btn_x2, explanation_btn_y2,
+                                     fill="purple", outline="black", tags="explanation_button")
+        self.canvas.create_text((explanation_btn_x1 + explanation_btn_x2) // 2, (explanation_btn_y1 + explanation_btn_y2) // 2,
+                                text="せつめい", font=font_subject, fill="white", tags="explanation_button")
+        # --- ここまで ---
+
         # === BGM再生（即時） ===
         self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
-        self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
+        #self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
 
 
     def draw_next_screen(self):
         self.canvas.delete("all")
         self.current_screen = "next"
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
 
         flag_name = self.flag_map.get(self.blocknumber)
         flag_name_en = self.flag_map[self.blocknumber]
@@ -311,62 +332,46 @@ class BlockGameApp:
             self.canvas.create_text(sample_x, sample_y, text="サンプル画像\nエラー", font=font_subject, fill="red", justify=tk.CENTER)
 
         # カメラプレビューエリアの設定
-        self.cam_x = 600  # プレビューエリアの中心 x
-        self.cam_y = 250  # プレビューエリアの中心 y
+        self.cam_x = 600   # プレビューエリアの中心 x
+        self.cam_y = 250   # プレビューエリアの中心 y
         self.cam_width = 300 # プレビューエリア全体の幅 (この中にアスペクト比保持で表示)
         self.cam_height = 300 # プレビューエリア全体の高さ
-        
+
         # プレビューエリアの背景 (黒い四角)
         self.canvas.create_rectangle(
             self.cam_x - self.cam_width // 2, self.cam_y - self.cam_height // 2,
             self.cam_x + self.cam_width // 2, self.cam_y + self.cam_height // 2,
-            fill="black", outline="grey", tags="camera_bg_rect" # このタグは必須ではない
+            fill="black", outline="grey", tags="camera_bg_rect"
         )
         # カメラ準備中のテキスト (update_frameで画像表示時に削除される)
         self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
         self.cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
-        self.image_tk = None          # update_frameでPhotoImage参照を保持
+        self.image_tk = None # update_frameでPhotoImage参照を保持
 
         # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
-        # ターゲットのガイド枠アスペクト比 (幅/高さ)
-        target_guide_aspect_ratio_wh = 12.0 / 7.0 
+        target_guide_aspect_ratio_wh = 12.0 / 7.0
 
-        # プレビューエリア (self.cam_width x self.cam_height) 内に
-        # 収まる最大の7:12の枠を計算する。
-        # (例: プレビューエリアが300x300の場合)
+        guide_w_if_h_is_max = int(self.cam_height * target_guide_aspect_ratio_wh)
+        guide_h_if_w_is_max = int(self.cam_width / target_guide_aspect_ratio_wh)
 
-        # 1. プレビューエリアの高さを基準に、ターゲットアスペクト比から枠の幅を計算
-        guide_w_if_h_is_max = int(self.cam_height * target_guide_aspect_ratio_wh) # 300 * 12/7 = 約514
-        
-        # 2. プレビューエリアの幅を基準に、ターゲットアスペクト比から枠の高さを計算
-        guide_h_if_w_is_max = int(self.cam_width / target_guide_aspect_ratio_wh) # 300 / (12/7) = 175
-
-        # プレビューエリアに収まるように最終的なガイド枠のサイズを決定
         if guide_w_if_h_is_max <= self.cam_width:
-            # 高さいっぱいの枠がプレビューエリア幅に収まる場合 (通常はこちらにはならない)
-            final_guide_height_on_preview = self.cam_height # 300
-            final_guide_width_on_preview = guide_w_if_h_is_max # 約514 (これは cam_width 300 を超える)
+            final_guide_height_on_preview = self.cam_height
+            final_guide_width_on_preview = guide_w_if_h_is_max
         else:
-            # 幅いっぱいの枠がプレビューエリア高さに収まる場合 (こちらが期待されるケース)
-            final_guide_width_on_preview = self.cam_width # 300
-            final_guide_height_on_preview = guide_h_if_w_is_max # 175
-        
-        # ガイド枠の座標を計算 (プレビューエリアの中央に配置)
-        # self.cam_x, self.cam_y はプレビューエリアの中心
+            final_guide_width_on_preview = self.cam_width
+            final_guide_height_on_preview = guide_h_if_w_is_max
+
         guide_x1 = self.cam_x - final_guide_width_on_preview // 2
         guide_y1 = self.cam_y - final_guide_height_on_preview // 2
         guide_x2 = self.cam_x + final_guide_width_on_preview // 2
         guide_y2 = self.cam_y + final_guide_height_on_preview // 2
 
-        # ガイド枠をキャンバスに描画 (黄色い線)
         self.canvas.create_rectangle(
             guide_x1, guide_y1, guide_x2, guide_y2,
-            outline="yellow", width=2, tags="crop_guide_rect" # このタグが重要
+            outline="yellow", width=2, tags="crop_guide_rect"
         )
-        # プレビュー上のガイド枠の絶対座標 (キャンバス座標系) を保存
         self.preview_crop_guide_coords = (guide_x1, guide_y1, guide_x2, guide_y2)
-        
-        # デバッグ用出力
+
         print(f"DEBUG (draw_next_screen): Preview Area (WxH): {self.cam_width}x{self.cam_height} at ({self.cam_x},{self.cam_y})")
         print(f"DEBUG (draw_next_screen): Final Guide Frame Size on Preview (WxH): {final_guide_width_on_preview}x{final_guide_height_on_preview}")
         print(f"DEBUG (draw_next_screen): Final Guide Frame Coords on Canvas (x1,y1,x2,y2): {self.preview_crop_guide_coords}")
@@ -382,16 +387,74 @@ class BlockGameApp:
 
         # メッセージ表示用テキストオブジェクト (最初は空)
         self.message_id = self.canvas.create_text(400, 555, text="", font=("Helvetica", 16), fill="red")
-        
 
-        #self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
         self.audio.play_voice("audio/voiceset/make/make_sample.wav")
+
+    def draw_explanation_screen(self):
+        self.canvas.delete("all")
+        self.current_screen = "explanation"
+        self.explanation_detection_count = 0  # カウントをリセット
+        self.last_detected_explanation_flag = None # 最後に検出されたフラグをリセット
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
+
+        # 背景画像の設定
+        explanation_bg_path = "image/background_explanation.jpg" # 説明画面専用の背景
+        try:
+            bg_image_path_to_load = explanation_bg_path if os.path.exists(explanation_bg_path) else "image/background.jpg"
+            if not os.path.exists(bg_image_path_to_load):
+                print(f"Critical: Fallback background {bg_image_path_to_load} not found for explanation screen.")
+                self.canvas.config(bg="lightgrey")
+            else:
+                bg_image = Image.open(bg_image_path_to_load)
+                bg_image = bg_image.resize((800, 600), Image.Resampling.LANCZOS)
+                self.bg_next_screen_tk = ImageTk.PhotoImage(bg_image) # 参照を保持
+                self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_next_screen_tk)
+                self.canvas.lower(self.bg_next_screen_tk)
+        except Exception as e:
+            print(f"Error loading explanation background: {e}")
+            self.canvas.config(bg="lightgrey")
+
+        self.canvas.create_text(400, 50, text="しりたい こっき を かざしてね！", font=font_title, fill="black")
+
+        # カメラプレビューエリアの設定 (サイズを調整)
+        self.cam_x = 400
+        self.cam_y = 250 # 少し上に移動
+        self.cam_width = 400 # 幅を小さく
+        self.cam_height = 300 # 高さを小さく
+
+        self.canvas.create_rectangle(
+            self.cam_x - self.cam_width // 2, self.cam_y - self.cam_height // 2,
+            self.cam_x + self.cam_width // 2, self.cam_y + self.cam_height // 2,
+            fill="black", outline="grey", tags="explanation_camera_bg_rect"
+        )
+        # テキストを画面の下中央に配置
+        self.explanation_screen_message_id = self.canvas.create_text(
+            400, 500, # 画面下中央に配置
+            text="カメラ準備中...", fill="white", font=font_subject
+        )
+        self.explanation_cam_feed_image_id = None # Explanation screen's camera image ID
+        self.image_tk = None # PhotoImage reference
+
+        # 戻るボタンを左下に配置
+        self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main_from_explanation")
+        self.canvas.create_text(150, 555, text="← もどる", font=font_subject, fill="black", tags="back_to_main_from_explanation")
+
+        #self.audio.play_voice("audio/voiceset/others/hold_flag.wav")
 
 
     def draw_result_screen(self):
         """検知成功後に表示する結果画面を描画する"""
         self.canvas.delete("all")
         self.current_screen = "result"
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
 
         try:
             background_path = "image/background.jpg"
@@ -412,12 +475,12 @@ class BlockGameApp:
         flag_name_en = self.flag_map[self.blocknumber]
         flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
         self.canvas.create_text(400, 80,
-                                text=f"「{flag_name_jp}」をゲットしたよ！",
-                                font=font_title, fill="darkgreen")
+                                 text=f"「{flag_name_jp}」をゲットしたよ！",
+                                 font=font_title, fill="darkgreen")
 
         self.canvas.create_text(400, 150,
-                                text=f"国旗(こっき)の番号(ばんごう): {self.blocknumber}",
-                                font=font_subject, fill="black")
+                                 text=f"国旗(こっき)の番号(ばんごう): {self.blocknumber}",
+                                 font=font_subject, fill="black")
 
         captured_image_path = self.captured_images.get(flag_name)
         if captured_image_path and os.path.exists(captured_image_path):
@@ -433,15 +496,15 @@ class BlockGameApp:
             self.canvas.create_text(400, 300, text="キャプチャ画像なし", font=font_subject, fill="grey")
 
         self.canvas.create_rectangle(300, 480, 500, 530,
-                                    fill="lightblue", outline="black",
-                                    tags="back_to_main_from_result")
+                                     fill="lightblue", outline="black",
+                                     tags="back_to_main_from_result")
         self.canvas.create_text(400, 505, text="メインにもどる",
-                                font=font_subject, fill="black",
-                                tags="back_to_main_from_result")
-        
+                                 font=font_subject, fill="black",
+                                 tags="back_to_main_from_result")
+
         self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
-    def detail_screen(self): # Currently unused
+    def detail_screen(self):
         # 国のデータ（画像ファイル・説明文）
         countries = {
             "Japan":[
@@ -511,7 +574,7 @@ class BlockGameApp:
                     "image": "image/チューリップ.jpg",
                     "text": "風車とチューリップがいっぱいの、カラフルなお花の国だよ。",
                     "voice": "audio/voiceset/introduction/intro_Oranda/intro_Oranda1.wav"
-            }   ,
+                } ,
                 {
                     "name": "オランダ（自転車）",
                     "image": "image/自転車.jpg",
@@ -554,7 +617,7 @@ class BlockGameApp:
                 },
                 {
                     "name": "デンマーク（自転車）",
-                    "image": "image/お城.jpg",    
+                    "image": "image/お城.jpg",
                     "text": "自転車（じてんしゃ）で町（まち）を走（はし）るのが\nとっても上手（じょうず）だよ。",
                     "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark2.wav"
                 },
@@ -565,49 +628,43 @@ class BlockGameApp:
                     "voice": "audio/voiceset/introduction/intro_Denmark/intro_Denmark3.wav"
                 },
             ]
-        }   
+        }
         self.current_screen = "detail"
         self.canvas.delete("all")
         self.image_refs.clear()
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
 
         flag_name = self.flag_map.get(self.blocknumber, "Unknown")
-# 2. 国旗画像を薄く加工して背景として表示
+        # 2. 国旗画像を薄く加工して背景として表示
 
         flag_bg_path = f"image/{flag_name}.png"  # 国旗画像パスの例。ファイル構成に合わせて変えてください。
 
         try:
             flag_bg_img = Image.open(flag_bg_path).resize((800,600)).convert("RGBA")
 
-    # 透明度を下げる（アルファ値を100に）
+        # 透明度を下げる（アルファ値を40%に）
             alpha = flag_bg_img.split()[3].point(lambda p: p * 0.4)  # 0.4は透明度調整。0=透明,1=不透明
             flag_bg_img.putalpha(alpha)
 
             flag_bg_tk = ImageTk.PhotoImage(flag_bg_img)
             self.image_refs.append(flag_bg_tk)
-            # 1. 白い四角形の枠を作る
-            #self.canvas.create_rectangle(250, 200, 550, 500, fill="white", outline="black")
-
-
-    # 白枠の中（中央）に国旗を表示
+            # 白枠の中（中央）に国旗を表示
             self.canvas.create_image(400, 300, image=flag_bg_tk, anchor=tk.CENTER)
         except Exception as e:
             print(f"国旗画像の読み込み失敗: {e}")
 
-        
+
         flag_name_en = self.flag_map[self.blocknumber]
         flag_name_jp = self.flag_names_jp.get(flag_name_en, flag_name_en)  # 日本語がなければ英語を使う
-        
+
+        # メインタイトルを黒で表示
         self.canvas.create_text(400, 50, text=f"{flag_name_jp} について", font=font_title, fill="black")
 
-    # 画像の参照保持用リスト
-        #image_refs = []
-
-        
-
         selected_info = random.choice(countries[flag_name])
-
-            
-    # エラー処理やデフォルト画像の使用など
 
         img = Image.open(selected_info["image"]).resize((300,300))
         img_tk = ImageTk.PhotoImage(img)
@@ -616,17 +673,12 @@ class BlockGameApp:
         self.canvas.create_image(400, 250, image=img_tk, anchor=tk.CENTER)
         self.canvas.create_text(430, 430, text=selected_info["text"], font=font_subject, fill="black")
 
-
-        #self.canvas.pack()
         self.canvas.create_rectangle(300, 500, 500, 550, fill="lightblue", outline="black", tags="back_to_main")
         self.canvas.create_text(400, 525, text="メインにもどる", font=font_subject, fill="black", tags="back_to_main")
-        
+
         self.audio.stop_bgm()
         self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
         self.audio.play_voice(selected_info["voice"])
-        
-
-
 
 
     def mouse_event(self, event):
@@ -643,6 +695,11 @@ class BlockGameApp:
         print(f"Clicked on item with tags: {tags}, primary tag: {tag} on screen: {self.current_screen}")
 
         if self.current_screen == "main":
+            if tag == "explanation_button":
+                print("Explanation button clicked. Navigating to explanation screen.")
+                self.draw_explanation_screen()
+                return
+
             for num, name in self.flag_map.items():
                 if tag == name:
                     self.blocknumber = num
@@ -675,6 +732,12 @@ class BlockGameApp:
                 print("Back to main from detail clicked")
                 self.draw_main_screen()
 
+        elif self.current_screen == "explanation":
+            if tag == "back_to_main_from_explanation":
+                print("Back to main from explanation screen clicked")
+                self.draw_main_screen()
+
+
     def capture_shutter(self):
         if self.last_frame is None:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
@@ -700,7 +763,6 @@ class BlockGameApp:
 
         try:
             cv2.imwrite(temp_filename, self.last_frame)
-            # print(f"Temporary image saved for YOLO: {temp_filename}") # 必要ならコメント解除
 
             results = self.model(temp_filename, verbose=False)
             confidence_threshold = 0.4
@@ -718,12 +780,7 @@ class BlockGameApp:
                         if confidence > best_confidence:
                             best_confidence = confidence
                             detected_correct_flag = True
-                            best_box = boxes.xyxy[i].tolist() # Store the box coordinates
-                            # Don't break here if you want the absolute best confidence among multiple detections
-                            # For now, let's assume the first good one is fine or update as we go.
-                            # If multiple high-confidence are found, this will pick the last one iterated.
-                            # To pick the absolute best, remove the break and do processing after loop.
-                            # For simplicity, we'll process if detected_correct_flag is True after the loop.
+                            best_box = boxes.xyxy[i].tolist()
 
 
             if detected_correct_flag and best_box: # Ensure best_box is not None
@@ -755,7 +812,7 @@ class BlockGameApp:
 
                     display_w_on_preview = self.preview_paste_info['w']
                     display_h_on_preview = self.preview_paste_info['h']
-                    
+
                     if display_w_on_preview <= 0 or display_h_on_preview <=0: # ゼロ除算を避ける
                         raise ValueError(f"Preview display size is zero or negative: {display_w_on_preview}x{display_h_on_preview}")
 
@@ -766,7 +823,7 @@ class BlockGameApp:
                     crop_orig_y1 = int(guide_rel_image_y1 * scale_y)
                     crop_orig_x2 = int(guide_rel_image_x2 * scale_x)
                     crop_orig_y2 = int(guide_rel_image_y2 * scale_y)
-                    
+
                     crop_orig_x1 = max(0, crop_orig_x1)
                     crop_orig_y1 = max(0, crop_orig_y1)
                     crop_orig_x2 = min(original_capture_width, crop_orig_x2)
@@ -787,17 +844,15 @@ class BlockGameApp:
                         error_msg = (f"Invalid crop dimensions after scaling. "
                                      f"CropBox:({crop_orig_x1},{crop_orig_y1},{crop_orig_x2},{crop_orig_y2}).")
                         print(f"ERROR: {error_msg}")
-                        # ここでエラーにするか、あるいはフォールバック処理（例：中央を適当なサイズで切り取る）を行う
-                        # 今回はエラーのままにしておく
                         raise ValueError(error_msg)
 
                     cropped_img = img_pil_original_capture.crop((crop_orig_x1, crop_orig_y1, crop_orig_x2, crop_orig_y2))
-                    
+
                     # ▼▼▼ DEBUG PRINT (capture_shutter) ▼▼▼
                     print(f"DEBUG (capture_shutter): Final Cropped Image Size (WxH): {cropped_img.width}x{cropped_img.height}")
                     if cropped_img.height > 0 : # ゼロ除算を避ける
-                         actual_aspect_ratio = cropped_img.width / float(cropped_img.height)
-                         print(f"DEBUG (capture_shutter): Actual Cropped Aspect Ratio (W/H): {actual_aspect_ratio:.2f} (Target: {12/7.0:.2f})")
+                        actual_aspect_ratio = cropped_img.width / float(cropped_img.height)
+                        print(f"DEBUG (capture_shutter): Actual Cropped Aspect Ratio (W/H): {actual_aspect_ratio:.2f} (Target: {12/7.0:.2f})")
                     # ▲▲▲ DEBUG PRINT (capture_shutter) ▲▲▲
 
                     permanent_filename_base = f"{expected_flag}_{timestamp}"
@@ -829,36 +884,43 @@ class BlockGameApp:
 
 
     def _resize_with_aspect_ratio(self, pil_image, target_width, target_height, background_color="black"):
-            """
-            PILイメージをアスペクト比を保持してリサイズし、指定された背景色の中央に配置する。
-            """
-            original_w, original_h = pil_image.size
-            target_aspect_ratio = float(target_width) / target_height # ターゲットエリアのアスペクト比
-            original_aspect_ratio = float(original_w) / original_h
+        """
+        PILイメージをアスペクト比を保持してリサイズし、指定された背景色の中央に配置する。
+        戻り値: PIL.Image.Image オブジェクト。
+        """
+        original_w, original_h = pil_image.size
+        target_aspect_ratio = float(target_width) / target_height # ターゲットエリアのアスペクト比
+        original_aspect_ratio = float(original_w) / original_h
 
-            if original_aspect_ratio > target_aspect_ratio:
-                # 元画像がターゲットエリアより横長の場合 (レターボックス)
-                # -> ターゲット幅いっぱいにリサイズ
-                display_w = target_width
-                display_h = int(target_width / original_aspect_ratio)
-            else:
-                # 元画像がターゲットエリアより縦長または同じアスペクト比の場合 (ピラーボックス)
-                # -> ターゲット高さいっぱいにリサイズ
-                display_h = target_height
-                display_w = int(target_height * original_aspect_ratio)
+        if original_aspect_ratio > target_aspect_ratio:
+            # 元画像がターゲットエリアより横長の場合 (レターボックス)
+            # -> ターゲット幅いっぱいにリサイズ
+            display_w = target_width
+            display_h = int(target_width / original_aspect_ratio)
+        else:
+            # 元画像がターゲットエリアより縦長または同じアスペクト比の場合 (ピラーボックス)
+            # -> ターゲット高さいっぱいにリサイズ
+            display_h = target_height
+            display_w = int(target_height * original_aspect_ratio)
 
-            # アスペクト比を保持してリサイズ
-            # Lanczos は高品質だが少し重い。速度優先なら NEAREST や BILINEAR
-            resized_image = pil_image.resize((display_w, display_h), Image.Resampling.LANCZOS)
+        # アスペクト比を保持してリサイズ
+        resized_image = pil_image.resize((display_w, display_h), Image.Resampling.LANCZOS)
 
-            # 背景イメージを作成し、中央にリサイズ画像を貼り付け
-            final_image = Image.new("RGB", (target_width, target_height), background_color)
-            paste_x = (target_width - display_w) // 2
-            paste_y = (target_height - display_h) // 2
-            final_image.paste(resized_image, (paste_x, paste_y))
+        # 背景イメージを作成し、中央にリサイズ画像を貼り付け
+        final_image = Image.new("RGB", (target_width, target_height), background_color)
+        paste_x = (target_width - display_w) // 2
+        paste_y = (target_height - display_h) // 2
+        final_image.paste(resized_image, (paste_x, paste_y))
 
-            return final_image
+        # プレビュー描画オフセットと実サイズを更新 (ここで直接更新するのは少しリスキーだが、現状のロジックで必要)
+        # 本来は update_frame 内で計算したものを _resize_with_aspect_ratio の呼び出し元に返す形がより堅牢
+        # 今回は既存コードの挙動を尊重し、update_frame で再度計算・上書きされることを前提とする
+        # self.preview_paste_info['x'] = paste_x
+        # self.preview_paste_info['y'] = paste_y
+        # self.preview_paste_info['w'] = display_w
+        # self.preview_paste_info['h'] = display_h
 
+        return final_image
 
 
     def trim_transparent_area(self, input_path, output_path):
@@ -888,84 +950,182 @@ class BlockGameApp:
             return False
 
     def update_frame(self):
+        # print(f"Current time: {time.time():.2f} JST, Frame: {self.frame_count}, Screen: {self.current_screen}")
+
+        # 遷移中の状態の場合は、UI更新をスキップして次のafterを待つ
+        if self.current_screen == "transitioning":
+            self.root.after(33, self.update_frame)
+            return
+
         if not (hasattr(self, 'capture') and self.capture and self.capture.isOpened()):
-             self.root.after(1000, self.update_frame) # Try reconnecting/checking less often
-             return
+            print("Camera not open, retrying in 1 second.")
+            self.root.after(1000, self.update_frame)
+            return
 
         ret, frame = self.capture.read()
-        if ret:
-            self.frame_count += 1
-            self.last_frame = frame # 元解像度のフレームを保持
-
-            if self.current_screen == "next" and self.canvas.winfo_exists(): # Ensure canvas is still there
+        if not ret: # フレーム取得失敗の場合
+            if self.current_screen in ["next", "explanation"] and self.canvas.winfo_exists():
                 try:
-                    frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
-                    frame_image_pil = Image.fromarray(frame_rgb) # 元のフレームのPILイメージ
-                    
-                    # --- 新しいヘルパー関数を呼び出してアスペクト比を保持してリサイズ ---
-                    # self.cam_width, self.cam_height はプレビュー表示エリアのサイズ (例: 300x300)
-                    processed_preview_pil = self._resize_with_aspect_ratio(
-                        frame_image_pil, 
-                        self.cam_width, 
-                        self.cam_height
-                    )
-                    self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持
-                    
-                    # ▼▼▼ プレビュー描画情報を保存 ▼▼▼
-                    original_w_temp, original_h_temp = frame_image_pil.size # 元のフレームサイズ
-                    target_w_temp, target_h_temp = self.cam_width, self.cam_height # プレビューエリアサイズ
+                    target_message_id = None
+                    if self.current_screen == "next":
+                        target_message_id = self.message_id
+                    elif self.current_screen == "explanation":
+                        target_message_id = self.explanation_screen_message_id
 
-                    # _resize_with_aspect_ratio と同じロジックで表示サイズとオフセットを計算
-                    ratio_temp = float(original_w_temp) / original_h_temp
-                    if original_w_temp / float(original_h_temp) > target_w_temp / float(target_h_temp): # 元が横長
-                        dw = target_w_temp
-                        dh = int(target_w_temp / ratio_temp)
-                    else: # 元が縦長または同じ
-                        dh = target_h_temp
-                        dw = int(target_h_temp * ratio_temp)
-                    
-                    self.preview_paste_info['w'] = dw  # 実際に表示されている画像の幅 (プレビュー上)
-                    self.preview_paste_info['h'] = dh  # 実際に表示されている画像の高さ (プレビュー上)
-                    self.preview_paste_info['x'] = (target_w_temp - dw) // 2 # 画像の左上のオフセットX (プレビューエリア内)
-                    self.preview_paste_info['y'] = (target_h_temp - dh) // 2 # 画像の左上のオフセットY (プレビューエリア内)
-                    
-                    # ▼▼▼ DEBUG PRINT (update_frame) ▼▼▼
-                    if self.frame_count % 60 == 1: # 60フレームに1回くらい表示 (約2秒ごと)
-                        print(f"DEBUG (update_frame): PreviewArea({self.cam_width}x{self.cam_height}), "
-                              f"OriginalFrame({original_w_temp}x{original_h_temp}), "
-                              f"PasteInfo(x:{self.preview_paste_info['x']}, y:{self.preview_paste_info['y']}, "
-                              f"w:{self.preview_paste_info['w']}, h:{self.preview_paste_info['h']})")
-                    # ▲▲▲ DEBUG PRINT (update_frame) ▲▲▲
-                    # ▲▲▲ プレビュー描画情報保存ここまで ▲▲▲
+                    if target_message_id and self.canvas.winfo_exists():
+                        self.canvas.itemconfig(target_message_id, text="カメラから映像取得失敗", fill="red")
+                except tk.TclError:
+                    pass
+            self.root.after(33, self.update_frame) # 引き続きフレーム更新を試みる
+            return
 
-                    if self.cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_image_id):
-                        self.canvas.itemconfig(self.cam_feed_image_id, image=self.image_tk)
-                    elif self.canvas.winfo_exists(): # Create if not exists or was deleted
-                        self.cam_feed_image_id = self.canvas.create_image(self.cam_x, self.cam_y, anchor=tk.CENTER, image=self.image_tk)
-                        if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                            self.canvas.delete(self.cam_feed_text_id)
-                            self.cam_feed_text_id = None
-                    
-                    # ガイド枠をカメラフィードの前面に表示する
+        # フレームが正常に取得できた場合のみ処理を続行
+        self.frame_count += 1
+        self.last_frame = frame # 元解像度のフレームを保持
+
+        if self.current_screen in ["next", "explanation"] and self.canvas.winfo_exists():
+            try:
+                frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
+                frame_image_pil = Image.fromarray(frame_rgb)
+
+                # プレビューサイズを画面に応じて切り替え
+                target_cam_width = 0
+                target_cam_height = 0
+                cam_feed_image_id_ref = None
+                cam_feed_text_id_ref = None
+                cam_x_offset = 0
+                cam_y_offset = 0
+
+                if self.current_screen == "next":
+                    target_cam_width = self.cam_width
+                    target_cam_height = self.cam_height
+                    cam_feed_image_id_ref = "cam_feed_image_id"
+                    cam_feed_text_id_ref = "cam_feed_text_id"
+                    cam_x_offset = self.cam_x
+                    cam_y_offset = self.cam_y
+                elif self.current_screen == "explanation":
+                    target_cam_width = self.cam_width # `draw_explanation_screen`で更新された値
+                    target_cam_height = self.cam_height # `draw_explanation_screen`で更新された値
+                    cam_feed_image_id_ref = "explanation_cam_feed_image_id"
+                    cam_feed_text_id_ref = "explanation_screen_message_id"
+                    cam_x_offset = self.cam_x
+                    cam_y_offset = self.cam_y
+
+                processed_preview_pil = self._resize_with_aspect_ratio(
+                    frame_image_pil,
+                    target_cam_width,
+                    target_cam_height
+                )
+                self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持 (重要: GC防止)
+
+                current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
+                current_cam_feed_text_id = getattr(self, cam_feed_text_id_ref)
+
+                # カメラフィード画像の更新または作成
+                if current_cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_image_id):
+                    self.canvas.itemconfig(current_cam_feed_image_id, image=self.image_tk)
+                elif self.canvas.winfo_exists():
+                    setattr(self, cam_feed_image_id_ref, self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk))
+                    # カメラフィードのテキストがあれば削除
+                    if current_cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_text_id):
+                        self.canvas.delete(current_cam_feed_text_id)
+                        setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
+
+                if self.current_screen == "next":
                     if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
                         self.canvas.tag_raise("crop_guide_rect")
+                elif self.current_screen == "explanation":
+                    # Explanation screen specific logic
+                    # 10フレームごとにYOLO検出を実行
+                    if self.frame_count % 10 == 0:
+                        results = self.model(self.last_frame, verbose=False)
+                        detected_flag_name = None
+                        best_confidence = 0.4 # Confidence threshold for detection
+                        
+                        print(f"--- DEBUG (Frame {self.frame_count}): YOLO Detection Results ---")
+                        if results and len(results[0].boxes) > 0:
+                            current_frame_detections = []
+                            for i, box in enumerate(results[0].boxes):
+                                confidence = box.conf[0].item()
+                                label_index = int(box.cls[0].item())
+                                object_type = self.model.names.get(label_index, "Unknown")
+                                current_frame_detections.append(f"  検出 {i+1}: タイプ='{object_type}', 信頼度={confidence:.2f}")
 
-                except tk.TclError as e: # Handle cases where canvas items might be deleted
-                    print(f"TclError updating camera feed (item might be deleted): {e}")
-                    self.cam_feed_image_id = None # Reset so it gets recreated
-                except Exception as e:
-                    print(f"Error updating camera feed display: {e}")
-                    if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                         self.canvas.itemconfig(self.cam_feed_text_id, text="表示エラー")
-        else:
-            # print("Failed to retrieve frame from camera.") # Can be noisy
-            if self.current_screen == "next" and hasattr(self, 'message_id') and self.message_id and self.canvas.winfo_exists():
-                try:
-                     self.canvas.itemconfig(self.message_id, text="カメラから映像取得失敗", fill="red")
-                except tk.TclError: pass
+                                # 最も信頼度の高い有効なフラグを特定
+                                if object_type in self.flag_map.values() and confidence > best_confidence:
+                                    best_confidence = confidence
+                                    detected_flag_name = object_type
+                            
+                            for detection_str in current_frame_detections:
+                                print(detection_str)
+                        else:
+                            print("  検出なし")
+                        
+                        # 検出結果に基づいて連続カウントを更新
+                        if detected_flag_name and detected_flag_name == self.last_detected_explanation_flag:
+                            self.explanation_detection_count += 1
+                        elif detected_flag_name: # 新しいフラグが検出された場合
+                            self.last_detected_explanation_flag = detected_flag_name
+                            self.explanation_detection_count = 1
+                        else: # 何も検出されなかった場合、または有効なフラグが検出されなかった場合
+                            self.last_detected_explanation_flag = None
+                            self.explanation_detection_count = 0
+                        
+                        print(f"  現在の連続検出フレーム数: {self.explanation_detection_count}")
+                        print("------------------------------------------")
+
+                        # テキスト表示の更新
+                        display_text = "こっき を かざしてね！"
+                        fill_color = "white"
+                        if self.last_detected_explanation_flag:
+                            display_jp_name = self.flag_names_jp.get(self.last_detected_explanation_flag, self.last_detected_explanation_flag)
+                            display_text = f"「{display_jp_name}」が検知されたよ！（連続　{self.explanation_detection_count}フレーム）"
+                            fill_color = "green"
+                        self.canvas.itemconfig(self.explanation_screen_message_id, text=display_text, fill=fill_color)
+                        self.root.update_idletasks() # 画面表示を即時更新
+
+                        # 90フレーム連続検出で詳細画面へ遷移
+                        if self.explanation_detection_count >= 9:
+                            #self.audio.play_voice("audio/voiceset/others/found_flag.wav")
+                            found_block_num = None
+                            for num, name in self.flag_map.items():
+                                if name == self.last_detected_explanation_flag:
+                                    found_block_num = num
+                                    break
+                            
+                            if found_block_num is not None:
+                                self.blocknumber = found_block_num
+                                print(f"Auto-navigating to detail screen for {self.last_detected_explanation_flag}")
+                                # 遷移が開始されることを示す状態に設定
+                                self.current_screen = "transitioning" 
+                                # メイン画面を再描画することで現在の説明画面をクリア
+                                self.draw_main_screen() 
+                                # 少し遅らせて詳細画面へ遷移（UIが完全に更新されるのを待つ）
+                                self.root.after(100, self.detail_screen) 
+                                return # ここで update_frame の現在の実行を終了
+                            else:
+                                print(f"ERROR: Detected flag '{self.last_detected_explanation_flag}' not found in flag_map for transition.")
+                                # マップにない国旗が検出されたが遷移できない場合、カウントをリセットして継続
+                                self.last_detected_explanation_flag = None
+                                self.explanation_detection_count = 0
+                                self.canvas.itemconfig(self.explanation_screen_message_id, text="不明な国旗です。こっき を かざしてね！", fill="red")
 
 
+            except tk.TclError as e:
+                print(f"TclError updating camera feed or canvas item (item might be deleted): {e}")
+                # Tkinterオブジェクトがすでに破棄されている場合に発生。画面遷移中によく起こる。
+                # 参照をNoneにリセットし、次回描画時に再作成を試みる。
+                self.cam_feed_image_id = None
+                self.explanation_cam_feed_image_id = None
+                self.image_tk = None # PhotoImage参照もクリア
+            except Exception as e:
+                print(f"Error in update_frame (current_screen: {self.current_screen}) : {e}")
+                import traceback
+                traceback.print_exc() # より詳細なエラー情報を出力
+
+        # 継続してupdate_frameを呼び出す
         self.root.after(33, self.update_frame) # Aim for ~30 FPS
+
     def on_close(self):
         print("Closing application...")
         if hasattr(self, 'capture') and self.capture and self.capture.isOpened():
@@ -974,12 +1134,12 @@ class BlockGameApp:
 
         print("Cleaning temporary files...")
         for item in os.listdir('.'):
-             if item.startswith("captured_image_temp_") and item.endswith(".jpg"):
-                 try:
-                     os.remove(item)
-                     print(f"Deleted: {item}")
-                 except Exception as e:
-                     print(f"Error deleting {item}: {e}")
+            if item.startswith("captured_image_temp_") and item.endswith(".jpg"):
+                try:
+                    os.remove(item)
+                    print(f"Deleted: {item}")
+                except Exception as e:
+                    print(f"Error deleting {item}: {e}")
         self.root.destroy()
 
 # --- Main Execution ---
