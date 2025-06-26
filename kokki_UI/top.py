@@ -39,6 +39,10 @@ class BlockGameApp:
         self.frame_count = 0
 
         self.image_refs = []
+        self.background_flag_tk = None
+
+        self.explanation_detection_count = 0
+        self.last_detected_explanation_flag = None
 
         # Output directory for processed images
         self.output_dir = "output_images"
@@ -87,6 +91,14 @@ class BlockGameApp:
 
         # Store PhotoImage references for captured flags to prevent garbage collection
         self.flag_photo_references = {}
+
+        # Camera feed IDs for "next" screen
+        self.cam_feed_image_id = None
+        self.cam_feed_text_id = None
+        # Camera feed IDs for "before_detail" (explanation) screen
+        self.explanation_cam_feed_image_id = None
+        self.explanation_screen_message_id = None # Initialize this
+        self.image_tk = None # Shared PhotoImage reference for camera feed
 
         # Draw the initial screen
         self.draw_main_screen()
@@ -1053,84 +1065,182 @@ class BlockGameApp:
             return False
 
     def update_frame(self):
+        # print(f"Current time: {time.time():.2f} JST, Frame: {self.frame_count}, Screen: {self.current_screen}")
+
+        # 遷移中の状態の場合は、UI更新をスキップして次のafterを待つ
+        if self.current_screen == "transitioning":
+            self.root.after(33, self.update_frame)
+            return
+
         if not (hasattr(self, 'capture') and self.capture and self.capture.isOpened()):
-             self.root.after(1000, self.update_frame) # Try reconnecting/checking less often
-             return
+            print("Camera not open, retrying in 1 second.")
+            self.root.after(1000, self.update_frame)
+            return
 
         ret, frame = self.capture.read()
-        if ret:
-            self.frame_count += 1
-            self.last_frame = frame # 元解像度のフレームを保持
-
-            if (self.current_screen == "next" or self.current_screen == "before_detail") and self.canvas.winfo_exists(): # Ensure canvas is still there
+        if not ret: # フレーム取得失敗の場合
+            if self.current_screen in ["next", "before_detail"] and self.canvas.winfo_exists():
                 try:
-                    frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
-                    frame_image_pil = Image.fromarray(frame_rgb) # 元のフレームのPILイメージ
-                    
-                    # --- 新しいヘルパー関数を呼び出してアスペクト比を保持してリサイズ ---
-                    # self.cam_width, self.cam_height はプレビュー表示エリアのサイズ (例: 300x300)
-                    processed_preview_pil = self._resize_with_aspect_ratio(
-                        frame_image_pil, 
-                        self.cam_width, 
-                        self.cam_height
-                    )
-                    self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持
-                    
-                    # ▼▼▼ プレビュー描画情報を保存 ▼▼▼
-                    original_w_temp, original_h_temp = frame_image_pil.size # 元のフレームサイズ
-                    target_w_temp, target_h_temp = self.cam_width, self.cam_height # プレビューエリアサイズ
+                    target_message_id = None
+                    if self.current_screen == "next":
+                        target_message_id = self.message_id
+                    elif self.current_screen == "before_detail":
+                        target_message_id = self.explanation_screen_message_id
 
-                    # _resize_with_aspect_ratio と同じロジックで表示サイズとオフセットを計算
-                    ratio_temp = float(original_w_temp) / original_h_temp
-                    if original_w_temp / float(original_h_temp) > target_w_temp / float(target_h_temp): # 元が横長
-                        dw = target_w_temp
-                        dh = int(target_w_temp / ratio_temp)
-                    else: # 元が縦長または同じ
-                        dh = target_h_temp
-                        dw = int(target_h_temp * ratio_temp)
-                    
-                    self.preview_paste_info['w'] = dw  # 実際に表示されている画像の幅 (プレビュー上)
-                    self.preview_paste_info['h'] = dh  # 実際に表示されている画像の高さ (プレビュー上)
-                    self.preview_paste_info['x'] = (target_w_temp - dw) // 2 # 画像の左上のオフセットX (プレビューエリア内)
-                    self.preview_paste_info['y'] = (target_h_temp - dh) // 2 # 画像の左上のオフセットY (プレビューエリア内)
-                    
-                    # ▼▼▼ DEBUG PRINT (update_frame) ▼▼▼
-                    if self.frame_count % 60 == 1: # 60フレームに1回くらい表示 (約2秒ごと)
-                        print(f"DEBUG (update_frame): PreviewArea({self.cam_width}x{self.cam_height}), "
-                              f"OriginalFrame({original_w_temp}x{original_h_temp}), "
-                              f"PasteInfo(x:{self.preview_paste_info['x']}, y:{self.preview_paste_info['y']}, "
-                              f"w:{self.preview_paste_info['w']}, h:{self.preview_paste_info['h']})")
-                    # ▲▲▲ DEBUG PRINT (update_frame) ▲▲▲
-                    # ▲▲▲ プレビュー描画情報保存ここまで ▲▲▲
+                    if target_message_id and self.canvas.winfo_exists():
+                        self.canvas.itemconfig(target_message_id, text="カメラから映像取得失敗", fill="red")
+                except tk.TclError:
+                    pass
+            self.root.after(33, self.update_frame) # 引き続きフレーム更新を試みる
+            return
 
-                    if self.cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_image_id):
-                        self.canvas.itemconfig(self.cam_feed_image_id, image=self.image_tk)
-                    elif self.canvas.winfo_exists(): # Create if not exists or was deleted
-                        self.cam_feed_image_id = self.canvas.create_image(self.cam_x, self.cam_y, anchor=tk.CENTER, image=self.image_tk)
-                        if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                            self.canvas.delete(self.cam_feed_text_id)
-                            self.cam_feed_text_id = None
-                    
-                    # ガイド枠をカメラフィードの前面に表示する
+        # フレームが正常に取得できた場合のみ処理を続行
+        self.frame_count += 1
+        self.last_frame = frame # 元解像度のフレームを保持
+
+        if self.current_screen in ["next", "before_detail"] and self.canvas.winfo_exists():
+            try:
+                frame_rgb = cv2.cvtColor(self.last_frame, cv2.COLOR_BGR2RGB)
+                frame_image_pil = Image.fromarray(frame_rgb)
+
+                # プレビューサイズを画面に応じて切り替え
+                target_cam_width = 0
+                target_cam_height = 0
+                cam_feed_image_id_ref = None
+                cam_feed_text_id_ref = None
+                cam_x_offset = 0
+                cam_y_offset = 0
+
+                if self.current_screen == "next":
+                    target_cam_width = self.cam_width
+                    target_cam_height = self.cam_height
+                    cam_feed_image_id_ref = "cam_feed_image_id"
+                    cam_feed_text_id_ref = "cam_feed_text_id"
+                    cam_x_offset = self.cam_x
+                    cam_y_offset = self.cam_y
+                elif self.current_screen == "before_detail":
+                    target_cam_width = self.cam_width # `draw_explanation_screen`で更新された値
+                    target_cam_height = self.cam_height # `draw_explanation_screen`で更新された値
+                    cam_feed_image_id_ref = "explanation_cam_feed_image_id"
+                    cam_feed_text_id_ref = "explanation_screen_message_id"
+                    cam_x_offset = self.cam_x
+                    cam_y_offset = self.cam_y
+
+                processed_preview_pil = self._resize_with_aspect_ratio(
+                    frame_image_pil,
+                    target_cam_width,
+                    target_cam_height
+                )
+                self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持 (重要: GC防止)
+
+                current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
+                current_cam_feed_text_id = getattr(self, cam_feed_text_id_ref)
+
+                # カメラフィード画像の更新または作成
+                if current_cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_image_id):
+                    self.canvas.itemconfig(current_cam_feed_image_id, image=self.image_tk)
+                elif self.canvas.winfo_exists():
+                    setattr(self, cam_feed_image_id_ref, self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk))
+                    # カメラフィードのテキストがあれば削除
+                    if current_cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_text_id):
+                        self.canvas.delete(current_cam_feed_text_id)
+                        setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
+
+                if self.current_screen == "next":
                     if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
                         self.canvas.tag_raise("crop_guide_rect")
+                elif self.current_screen == "before_detail":
+                    # Explanation screen specific logic
+                    # 10フレームごとにYOLO検出を実行
+                    if self.frame_count % 10 == 0:
+                        results = self.model(self.last_frame, verbose=False)
+                        detected_flag_name = None
+                        best_confidence = 0.4 # Confidence threshold for detection
+                        
+                        print(f"--- DEBUG (Frame {self.frame_count}): YOLO Detection Results ---")
+                        if results and len(results[0].boxes) > 0:
+                            current_frame_detections = []
+                            for i, box in enumerate(results[0].boxes):
+                                confidence = box.conf[0].item()
+                                label_index = int(box.cls[0].item())
+                                object_type = self.model.names.get(label_index, "Unknown")
+                                current_frame_detections.append(f"  検出 {i+1}: タイプ='{object_type}', 信頼度={confidence:.2f}")
 
-                except tk.TclError as e: # Handle cases where canvas items might be deleted
-                    print(f"TclError updating camera feed (item might be deleted): {e}")
-                    self.cam_feed_image_id = None # Reset so it gets recreated
-                except Exception as e:
-                    print(f"Error updating camera feed display: {e}")
-                    if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                         self.canvas.itemconfig(self.cam_feed_text_id, text="表示エラー")
-        else:
-            # print("Failed to retrieve frame from camera.") # Can be noisy
-            if self.current_screen == "next" and hasattr(self, 'message_id') and self.message_id and self.canvas.winfo_exists():
-                try:
-                     self.canvas.itemconfig(self.message_id, text="カメラから映像取得失敗", fill="red")
-                except tk.TclError: pass
+                                # 最も信頼度の高い有効なフラグを特定
+                                if object_type in self.flag_map.values() and confidence > best_confidence:
+                                    best_confidence = confidence
+                                    detected_flag_name = object_type
+                            
+                            for detection_str in current_frame_detections:
+                                print(detection_str)
+                        else:
+                            print("  検出なし")
+                        
+                        # 検出結果に基づいて連続カウントを更新
+                        if detected_flag_name and detected_flag_name == self.last_detected_explanation_flag:
+                            self.explanation_detection_count += 1
+                        elif detected_flag_name: # 新しいフラグが検出された場合
+                            self.last_detected_explanation_flag = detected_flag_name
+                            self.explanation_detection_count = 1
+                        else: # 何も検出されなかった場合、または有効なフラグが検出されなかった場合
+                            self.last_detected_explanation_flag = None
+                            self.explanation_detection_count = 0
+                        
+                        print(f"  現在の連続検出フレーム数: {self.explanation_detection_count}")
+                        print("------------------------------------------")
+
+                        # テキスト表示の更新
+                        display_text = "こっき を かざしてね！"
+                        fill_color = "white"
+                        if self.last_detected_explanation_flag:
+                            display_jp_name = self.flag_names_jp.get(self.last_detected_explanation_flag, self.last_detected_explanation_flag)
+                            display_text = f"「{display_jp_name}」が検知されたよ！（連続　{self.explanation_detection_count}フレーム）"
+                            fill_color = "green"
+                        self.canvas.itemconfig(self.explanation_screen_message_id, text=display_text, fill=fill_color)
+                        self.root.update_idletasks() # 画面表示を即時更新
+
+                        # 90フレーム連続検出で詳細画面へ遷移
+                        if self.explanation_detection_count >= 9:
+                            #self.audio.play_voice("audio/voiceset/others/found_flag.wav")
+                            found_block_num = None
+                            for num, name in self.flag_map.items():
+                                if name == self.last_detected_explanation_flag:
+                                    found_block_num = num
+                                    break
+                            
+                            if found_block_num is not None:
+                                self.blocknumber = found_block_num
+                                print(f"Auto-navigating to detail screen for {self.last_detected_explanation_flag}")
+                                # 遷移が開始されることを示す状態に設定
+                                self.current_screen = "transitioning" 
+                                # メイン画面を再描画することで現在の説明画面をクリア
+                                self.draw_main_screen() 
+                                # 少し遅らせて詳細画面へ遷移（UIが完全に更新されるのを待つ）
+                                self.root.after(100, self.detail_screen) 
+                                return # ここで update_frame の現在の実行を終了
+                            else:
+                                print(f"ERROR: Detected flag '{self.last_detected_explanation_flag}' not found in flag_map for transition.")
+                                # マップにない国旗が検出されたが遷移できない場合、カウントをリセットして継続
+                                self.last_detected_explanation_flag = None
+                                self.explanation_detection_count = 0
+                                self.canvas.itemconfig(self.explanation_screen_message_id, text="不明な国旗です。こっき を かざしてね！", fill="red")
 
 
+            except tk.TclError as e:
+                print(f"TclError updating camera feed or canvas item (item might be deleted): {e}")
+                # Tkinterオブジェクトがすでに破棄されている場合に発生。画面遷移中によく起こる。
+                # 参照をNoneにリセットし、次回描画時に再作成を試みる。
+                self.cam_feed_image_id = None
+                self.explanation_cam_feed_image_id = None
+                self.image_tk = None # PhotoImage参照もクリア
+            except Exception as e:
+                print(f"Error in update_frame (current_screen: {self.current_screen}) : {e}")
+                import traceback
+                traceback.print_exc() # より詳細なエラー情報を出力
+
+        # 継続してupdate_frameを呼び出す
         self.root.after(33, self.update_frame) # Aim for ~30 FPS
+
     def on_close(self):
         print("Closing application...")
         if hasattr(self, 'capture') and self.capture and self.capture.isOpened():
