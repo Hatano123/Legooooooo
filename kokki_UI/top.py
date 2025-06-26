@@ -452,6 +452,13 @@ class BlockGameApp:
         self.canvas.delete("all")
         self.image_refs.clear()
 
+        self.explanation_detection_count = 0  # 連続検出カウントをリセット
+        self.last_detected_explanation_flag = None # 最後に検出されたフラグをリセット
+        # カメラ関連の表示オブジェクトをリセット
+        self.cam_feed_image_id = None
+        self.explanation_cam_feed_image_id = None
+        self.image_tk = None # PhotoImage参照もクリア
+
         # 背景画像の設定 (キャプチャ画面専用またはデフォルト)
         capture_bg_path = "image/background_capture.jpg"
         try:
@@ -469,7 +476,7 @@ class BlockGameApp:
             print(f"Error loading capture background: {e}")
             self.canvas.config(bg="lightgrey")
 
-        self.canvas.create_text(400, 30, text=" せつめいを みたいくに を つくってね", font=font_subject, fill="black")
+        self.canvas.create_text(400, 30, text=" せつめいを みたいくに を つくってね", font=font_title, fill="black")
 
 
         # カメラプレビューエリアの設定
