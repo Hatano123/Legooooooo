@@ -74,7 +74,10 @@ class BlockGameApp:
 
         except Exception as e:
             messagebox.showerror("YOLO Error", f"Failed to load YOLO model 'Rebest.pt': {e}")
-            if self.capture and self.capture.isOpened(): self.capture.release()
+            if self.capture and self.capture.isOpened(): 
+                self.capture.release()
+                self.capture =None
+            
             root.destroy()
             return
 
@@ -153,6 +156,12 @@ class BlockGameApp:
             self.canvas.config(bg="lightgrey")
             if self.bg_canvas_id and self.canvas.winfo_exists(): self.canvas.delete(self.bg_canvas_id)
             self.bg_tk = None
+
+    def _ensure_camera_is_open(self):
+        """カメラが必要な画面に遷移する際に、カメラが閉じている場合に再初期化を試みる"""
+        if not (hasattr(self, 'capture') and self.capture and self.capture.isOpened()):
+            print("Attempting to re-open camera...")
+            self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
             
     def draw_main_screen(self):
         self.canvas.delete("all")
@@ -256,12 +265,13 @@ class BlockGameApp:
             self.canvas.lower(self.bg_canvas_id)
 
         #戻るボタンなど追加
-        self.canvas.create_rectangle(230, 490, 540, 590, fill="red", width=2, tags="next_screen")
-        self.canvas.create_text(385, 540, text="くにのせつめいをみる", font=font_title2, fill="white")
+        self.canvas.create_rectangle(230, 490, 540, 590, fill="red", width=2, tags="explanation_button")
+        self.canvas.create_text(385, 540, text="くにのせつめいをみる", font=font_title2, fill="white",tags="explanation_button")
         self.canvas.create_rectangle(630, 490, 770, 590, fill="blue", width=2, tags="reset")
         self.canvas.create_text(700, 540, text="りせっと", font=font_title2, fill="white")
 
         # === BGM再生（即時） ===
+        self._ensure_camera_is_open() 
         self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
         self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
@@ -341,10 +351,11 @@ class BlockGameApp:
             fill="black", outline="grey", tags="camera_bg_rect" # このタグは必須ではない
         )
         # カメラ準備中のテキスト (update_frameで画像表示時に削除される)
-        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
-        self.cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
-        self.image_tk = None          # update_frameでPhotoImage参照を保持
 
+        self.cam_feed_image_id = None # next画面のカメラIDをリセット
+        self.cam_feed_text_id = None # next画面のカメラテキストIDをリセット
+        self.explanation_cam_feed_image_id = None # explanation画面のカメラIDをリセット
+        self.image_tk = None # PhotoImage参照をクリア
         # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
         # ターゲットのガイド枠アスペクト比 (幅/高さ)
         target_guide_aspect_ratio_wh = 12.0 / 7.0 
@@ -391,8 +402,10 @@ class BlockGameApp:
         # --- ガイド枠描画ここまで ---
 
         # シャッターボタン
-        self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
-        self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
+        #self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
+        #self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
+        self.shutter_button_rect_id = self.canvas.create_rectangle(300, 450, 500, 500, fill="gray", outline="black", tags="shutter_disabled")
+        self.shutter_button_text_id = self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter_disabled")
 
         # 戻るボタン
         self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main")
@@ -462,6 +475,7 @@ class BlockGameApp:
     def before_detail_screen(self):
         self.current_screen = "before_detail"
         self.canvas.delete("all")
+        self._ensure_camera_is_open() 
         self.image_refs.clear()
 
         self.explanation_detection_count = 0  # 連続検出カウントをリセット
@@ -504,8 +518,8 @@ class BlockGameApp:
             fill="black", outline="grey", tags="camera_bg_rect" # このタグは必須ではない
         )
         # カメラ準備中のテキスト (update_frameで画像表示時に削除される)
-        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中...", fill="white", font=font_subject)
-        self.cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
+        self.explanation_screen_message_id = self.canvas.create_text(self.cam_x, self.cam_y + self.cam_height // 2 + 30, text="カメラ準備中...", fill="white", font=font_subject)
+        self.explanation_cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
         self.image_tk = None          # update_frameでPhotoImage参照を保持
 
         # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
@@ -778,34 +792,32 @@ class BlockGameApp:
         clicked_tags = self.canvas.gettags((items[-1]))
 
         target_tag = None
-        for tag_in_list in reversed(clicked_tags): # 最も手前にあるアイテムから順に調べる
-            
-            # 最初に意味のあるタグが見つかったらそれを採用
-            # 'current' や 'button_default', 'text_default' などの内部タグや詳細タグではなく、
-            # 処理したい主要なタグを優先して見つける
-            if tag_in_list == "next_screen":
-                    target_tag = "next_screen"
-                    break
-            elif tag_in_list == "reset":
-                    target_tag = "reset"
-                    break
-            elif tag_in_list == "shutter": # シャッターボタンのタグも追加
-                target_tag = "shutter"
-                break
-            elif tag_in_list == "back_to_main": # もどるボタンのタグも追加
-                target_tag = "back_to_main"
-                break
-            elif tag_in_list == "back_to_main_from_result": # 結果画面からもどるボタンのタグも追加
-                target_tag = "back_to_main_from_result"
-                break
-
-            # フラッグの名前タグも同様にチェック
+        # Prioritize specific action tags first
+        if "explanation_button" in clicked_tags: # 変更
+            target_tag = "explanation_button" # 変更
+        elif "reset" in clicked_tags:
+            target_tag = "reset"
+        elif "shutter" in clicked_tags:
+            target_tag = "shutter"
+        elif "back_to_main" in clicked_tags:
+            target_tag = "back_to_main"
+        elif "back_to_main_from_result" in clicked_tags:
+            target_tag = "back_to_main_from_result"
+        else: # If no specific action tags, check for flag names
             for flag_name_en in self.flag_map.values():
-                if tag_in_list == flag_name_en:
+                if flag_name_en in clicked_tags:
                     target_tag = flag_name_en
                     break
-            if target_tag: # フラッグタグが見つかったらループを抜ける
-                break
+
+        if not target_tag:
+            print(f"No relevant tag found for click at ({x},{y}). All tags for items: {clicked_tags}")
+            return
+
+        print(f"Clicked on item with target tag: {target_tag} on screen: {self.current_screen}")
+
+        if self.current_screen == "main":
+            if target_tag == "explanation_button": # 変更
+                self.before_detail_screen() # 変更
 
         if not target_tag:
         # 処理すべきタグが見つからなかった場合
@@ -844,7 +856,7 @@ class BlockGameApp:
                 self.draw_main_screen()
 
         elif self.current_screen == "before_detail":
-            if  "back_to_main" in clicked_tags:
+            if target_tag == "back_to_main" :
                 self.draw_main_screen()
 
         elif self.current_screen == "detail":
@@ -854,11 +866,12 @@ class BlockGameApp:
 
     def capture_shutter(self):
         if self.last_frame is None:
-            if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
+            if not (hasattr(self, 'capture') and self.capture and self.capture.isOpened()):
+                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
             return
         if self.blocknumber is None:
-            if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="エラー: フラッグが選択されていません")
-            return
+            if self.message_id and self.canvas.winfo_exists(): 
+                self.canvas.itemconfig(self.message_id, text="エラー: フラッグが選択されていません")
 
         expected_flag = self.flag_map.get(self.blocknumber)
         flag_name_en = self.flag_map[self.blocknumber]
@@ -866,10 +879,14 @@ class BlockGameApp:
         if not expected_flag:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
             return
+        error_msg=""
+        if self.preview_paste_info['w'] <= 0 or self.preview_paste_info['h'] <= 0:
+            print(f"ERROR: {error_msg} (w:{self.preview_paste_info['w']}, h:{self.preview_paste_info['h']})")
 
         if self.message_id and self.canvas.winfo_exists():
             self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
             self.audio.play_voice("audio/voiceset/others/check_picture.wav")
+            
         self.root.update_idletasks()
 
         timestamp = int(time.time())
@@ -1029,7 +1046,7 @@ class BlockGameApp:
             resized_image = pil_image.resize((display_w, display_h), Image.Resampling.LANCZOS)
 
             # 背景イメージを作成し、中央にリサイズ画像を貼り付け
-            final_image = Image.new("RGB", (target_width, target_height), background_color)
+            final_image = Image.new("RGBA", (target_width, target_height), (0,0,0,0))
             paste_x = (target_width - display_w) // 2
             paste_y = (target_height - display_h) // 2
             final_image.paste(resized_image, (paste_x, paste_y))
@@ -1147,47 +1164,69 @@ class BlockGameApp:
                         setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
 
                 if self.current_screen == "next":
-                    if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
+                    # --- next画面のカメラフィード更新 ---
+                    if self.current_screen == "next":
+                        self.cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
+                        if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
+                            self.canvas.delete(self.cam_feed_text_id)
+                            self.cam_feed_text_id = None
+                    # --- before_detail画面のカメラフィード更新 ---
+                    elif self.current_screen == "before_detail":
+                        self.explanation_cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
+                        # explanation_screen_message_id は検出フィードバック用なので削除しない
+                        pass
+                if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
+                    self.canvas.tag_raise("crop_guide_rect")
+                    
+                    # --- シャッターボタンの有効化ロジック (next画面のみ) ---
+                if self.current_screen == "next" and self.cam_feed_image_id is not None \
+                    and self.preview_paste_info['w'] > 0 and self.preview_paste_info['h'] > 0 \
+                    and self.canvas.find_withtag("shutter_disabled"): # shutter_disabledタグがある場合のみ有効化を試みる
+                    
+                    print("DEBUG: Enabling shutter button.")
+                    self.canvas.dtag("shutter_disabled", "shutter_disabled") # "shutter_disabled" タグを削除
+                    self.canvas.addtag_withtag("shutter", self.shutter_button_rect_id) # "shutter" タグを追加
+                    self.canvas.addtag_withtag("shutter", self.shutter_button_text_id) # テキストにも "shutter" タグを追加
+                    self.canvas.itemconfig(self.shutter_button_rect_id, fill="red") # ボタンの色を赤に戻す
+
+            # --- before_detail画面のYOLO検出ロジック ---
+                if self.current_screen == "before_detail":
+                    if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"): # ガイド枠を常に前面に
                         self.canvas.tag_raise("crop_guide_rect")
-                elif self.current_screen == "before_detail":
-                    # Explanation screen specific logic
-                    # 10フレームごとにYOLO検出を実行
-                    if self.frame_count % 10 == 0:
+                
+                    if self.frame_count % 10 == 0: # 10フレームごとにYOLO検出を実行
                         results = self.model(self.last_frame, verbose=False)
                         detected_flag_name = None
                         best_confidence = 0.4 # Confidence threshold for detection
-                        
-                        print(f"--- DEBUG (Frame {self.frame_count}): YOLO Detection Results ---")
+
+                        current_frame_detections = []
                         if results and len(results[0].boxes) > 0:
-                            current_frame_detections = []
-                            for i, box in enumerate(results[0].boxes):
+                            for box in results[0].boxes:
                                 confidence = box.conf[0].item()
                                 label_index = int(box.cls[0].item())
                                 object_type = self.model.names.get(label_index, "Unknown")
-                                current_frame_detections.append(f"  検出 {i+1}: タイプ='{object_type}', 信頼度={confidence:.2f}")
-
                                 # 最も信頼度の高い有効なフラグを特定
                                 if object_type in self.flag_map.values() and confidence > best_confidence:
                                     best_confidence = confidence
                                     detected_flag_name = object_type
                             
-                            for detection_str in current_frame_detections:
-                                print(detection_str)
-                        else:
-                            print("  検出なし")
+                                for detection_str in current_frame_detections:
+                                    print(detection_str)
+                            else:
+                                print("  検出なし")
                         
                         # 検出結果に基づいて連続カウントを更新
-                        if detected_flag_name and detected_flag_name == self.last_detected_explanation_flag:
-                            self.explanation_detection_count += 1
-                        elif detected_flag_name: # 新しいフラグが検出された場合
-                            self.last_detected_explanation_flag = detected_flag_name
-                            self.explanation_detection_count = 1
-                        else: # 何も検出されなかった場合、または有効なフラグが検出されなかった場合
-                            self.last_detected_explanation_flag = None
-                            self.explanation_detection_count = 0
+                            if detected_flag_name and detected_flag_name == self.last_detected_explanation_flag:
+                                self.explanation_detection_count += 1
+                            elif detected_flag_name: # 新しいフラグが検出された場合
+                                self.last_detected_explanation_flag = detected_flag_name
+                                self.explanation_detection_count = 1
+                            else: # 何も検出されなかった場合、または有効なフラグが検出されなかった場合
+                                self.last_detected_explanation_flag = None
+                                self.explanation_detection_count = 0
                         
-                        print(f"  現在の連続検出フレーム数: {self.explanation_detection_count}")
-                        print("------------------------------------------")
+                            print(f"  現在の連続検出フレーム数: {self.explanation_detection_count}")
+                            print("------------------------------------------")
 
                         # テキスト表示の更新
                         display_text = "こっき を かざしてね！"
