@@ -353,7 +353,7 @@ class BlockGameApp:
         # カメラ準備中のテキスト (update_frameで画像表示時に削除される)
 
         self.cam_feed_image_id = None # next画面のカメラIDをリセット
-        self.cam_feed_text_id = None # next画面のカメラテキストIDをリセット
+        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中…", fill="white",font=font_subject) # next画面のカメラテキストIDをリセット
         self.explanation_cam_feed_image_id = None # explanation画面のカメラIDをリセット
         self.image_tk = None # PhotoImage参照をクリア
         # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
@@ -418,6 +418,9 @@ class BlockGameApp:
         #self.canvas.after(300, lambda: self.audio.play_voice("audio/voiceset/make/make_sample.wav"))
         self.audio.play_voice("audio/voiceset/make/make_sample.wav")
 
+        # プレビュー画像の貼り付け情報（w/hが0だとシャッターが有効にならない）
+        self.preview_paste_info['w'] = self.cam_width  # 例: 300
+        self.preview_paste_info['h'] = int(self.cam_width * 7 / 12)  # 12:7 の比率に従った高さ
 
     def draw_result_screen(self):
         """検知成功後に表示する結果画面を描画する"""
@@ -482,6 +485,7 @@ class BlockGameApp:
         self.last_detected_explanation_flag = None # 最後に検出されたフラグをリセット
         # カメラ関連の表示オブジェクトをリセット
         self.cam_feed_image_id = None
+        self.cam_feed_text_id = None
         self.explanation_cam_feed_image_id = None
         self.image_tk = None # PhotoImage参照もクリア
 
@@ -1100,7 +1104,7 @@ class BlockGameApp:
                 try:
                     target_message_id = None
                     if self.current_screen == "next":
-                        target_message_id = self.message_id
+                        target_message_id = self.cam_feed_text_id
                     elif self.current_screen == "before_detail":
                         target_message_id = self.explanation_screen_message_id
 
@@ -1150,31 +1154,48 @@ class BlockGameApp:
                 )
                 self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持 (重要: GC防止)
 
-                current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
-                current_cam_feed_text_id = getattr(self, cam_feed_text_id_ref)
+               # current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
+                #current_cam_feed_text_id = getattr(self, cam_feed_text_id_ref)
 
-                # カメラフィード画像の更新または作成
-                if current_cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_image_id):
-                    self.canvas.itemconfig(current_cam_feed_image_id, image=self.image_tk)
-                elif self.canvas.winfo_exists():
-                    setattr(self, cam_feed_image_id_ref, self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk))
-                    # カメラフィードのテキストがあれば削除
-                    if current_cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_text_id):
-                        self.canvas.delete(current_cam_feed_text_id)
-                        setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
+                # # カメラフィード画像の更新または作成
+                # if current_cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_image_id):
+                #     self.canvas.itemconfig(current_cam_feed_image_id, image=self.image_tk)
+                # elif self.canvas.winfo_exists():
+                #     setattr(self, cam_feed_image_id_ref, self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk))
+                #     # カメラフィードのテキストがあれば削除
+                #     if current_cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_text_id):
+                #         self.canvas.delete(current_cam_feed_text_id)
+                #         setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
 
+                # if self.current_screen == "next":
+                #     # --- next画面のカメラフィード更新 ---
+                #     if self.current_screen == "next":
+                #         self.cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
+                #         if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
+                #             self.canvas.delete(self.cam_feed_text_id)
+                #             self.cam_feed_text_id = None
+                #     # --- before_detail画面のカメラフィード更新 ---
+                #     elif self.current_screen == "before_detail":
+                #         self.explanation_cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
+                #         # explanation_screen_message_id は検出フィードバック用なので削除しない
+                #         pass
+
+                # [FIXED] カメラフィード画像の更新または作成ロジックを修正
                 if self.current_screen == "next":
-                    # --- next画面のカメラフィード更新 ---
-                    if self.current_screen == "next":
-                        self.cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
+                    if self.cam_feed_image_id is None: # 画像がCanvasにまだない場合
+                        self.cam_feed_image_id = self.canvas.create_image(self.cam_x, self.cam_y, anchor=tk.CENTER, image=self.image_tk)
                         if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                            self.canvas.delete(self.cam_feed_text_id)
-                            self.cam_feed_text_id = None
-                    # --- before_detail画面のカメラフィード更新 ---
-                    elif self.current_screen == "before_detail":
-                        self.explanation_cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
-                        # explanation_screen_message_id は検出フィードバック用なので削除しない
-                        pass
+                            self.canvas.delete(self.cam_feed_text_id) # 「カメラ準備中」テキストを削除
+                            self.cam_feed_text_id = None # IDをクリア
+                    else: # 既に画像がある場合
+                        self.canvas.itemconfig(self.cam_feed_image_id, image=self.image_tk)
+                
+                elif self.current_screen == "before_detail":
+                    if self.explanation_cam_feed_image_id is None: # 画像がCanvasにまだない場合
+                        self.explanation_cam_feed_image_id = self.canvas.create_image(self.cam_x, self.cam_y, anchor=tk.CENTER, image=self.image_tk)
+                        # explanation_screen_message_id は検出フィードバック用なので削除しない (pass)
+                    else: # 既に画像がある場合
+                        self.canvas.itemconfig(self.explanation_cam_feed_image_id, image=self.image_tk)
                 if self.canvas.winfo_exists() and self.canvas.find_withtag("crop_guide_rect"):
                     self.canvas.tag_raise("crop_guide_rect")
                     
