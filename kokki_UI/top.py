@@ -259,6 +259,16 @@ class BlockGameApp:
         self.canvas.create_text((explanation_btn_x1 + explanation_btn_x2) // 2, (explanation_btn_y1 + explanation_btn_y2) // 2,
                                 text="せつめい", font=font_subject, fill="white", tags="explanation_button")
         # --- ここまで ---
+        
+        reset_btn_x1 = 50
+        reset_btn_y1 = 530
+        reset_btn_x2 = 200
+        reset_btn_y2 = 580
+        self.canvas.create_rectangle(reset_btn_x1, reset_btn_y1, reset_btn_x2, reset_btn_y2,
+                                     fill="orange", outline="black", tags="reset_button")
+        self.canvas.create_text((reset_btn_x1 + reset_btn_x2) // 2, (reset_btn_y1 + reset_btn_y2) // 2,
+                                text="リセット", font=font_subject, fill="white", tags="reset_button")
+        
 
         # === BGM再生（即時） ===
         self.audio.stop_bgm()
@@ -700,6 +710,11 @@ class BlockGameApp:
                 print("Explanation button clicked. Navigating to explanation screen.")
                 self.draw_explanation_screen()
                 return
+            
+            if tag == "reset_button":
+                print("Reset button clicked.")
+                self.reset_all()
+                return
 
             for num, name in self.flag_map.items():
                 if tag == name:
@@ -901,7 +916,36 @@ class BlockGameApp:
         
         # ★★★ 修正点: 計算した情報を返す ★★★
         return final_image, paste_x, paste_y, display_w, display_h
+    
+    def reset_all(self):
+        """
+        全てのキャプチャ画像と状態をリセットして初期状態に戻します。
+        """
+        # 確認ダイアログを表示
+        if not messagebox.askyesno("かくにん", "ほんとうに すべてのデータをけして リセットしますか？"):
+            return # 「いいえ」が押されたら何もしない
 
+        print("--- Resetting Application State ---")
+        
+        # 1. キャプチャ画像の記録をリセット
+        self.captured_images = {flag: None for flag in self.flag_map.values()}
+        print("Captured image records have been reset.")
+
+        # 2. `output_images` ディレクトリの中身を削除
+        if os.path.isdir(self.output_dir):
+            try:
+                # 一度フォルダごと削除して、作り直すのが確実
+                shutil.rmtree(self.output_dir)
+                print(f"Directory '{self.output_dir}' and its contents have been deleted.")
+                os.makedirs(self.output_dir, exist_ok=True)
+                print(f"Directory '{self.output_dir}' has been recreated.")
+            except Exception as e:
+                print(f"Error while resetting output directory: {e}")
+                messagebox.showerror("リセットエラー", f"画像の保存フォルダのリセット中にエラーがおきました。\n{e}")
+        
+        # 3. メイン画面を再描画して見た目を更新
+        self.draw_main_screen()
+        print("--- Reset Complete ---")
 
     def trim_transparent_area(self, input_path, output_path):
         try:
@@ -1123,6 +1167,8 @@ class BlockGameApp:
                 except Exception as e:
                     print(f"Error deleting {item}: {e}")
         self.root.destroy()
+
+    
 
 # --- Main Execution ---
 if __name__ == "__main__":
