@@ -13,7 +13,7 @@ import shutil # For copying file in trim_transparent_area
 from Audio import Audio
 import random
 
-class BlockGameApp:
+class BlockGameApp: 
     
     def __init__(self, root):
         self.root = root
