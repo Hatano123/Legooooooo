@@ -857,7 +857,7 @@ class BlockGameApp:
                     print(f"ERROR during image processing/saving for {expected_flag}: {e_process_save}")
                     if self.message_id and self.canvas.winfo_exists():
                         self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の 加工・保存に しっぱい...", fill='red')
-                        
+
         except Exception as e:
             print(f"ERROR during capture/YOLO processing: {e}")
             if self.message_id and self.canvas.winfo_exists():
@@ -1068,7 +1068,7 @@ class BlockGameApp:
 
                         # 9フレーム連続検出で詳細画面へ遷移
                          # 9フレーム連続検出で詳細画面へ遷移
-                        if self.explanation_detection_count >= 9:
+                        if self.explanation_detection_count >= 5:
                             found_block_num = None
                             for num, name in self.flag_map.items():
                                 if name == self.last_detected_explanation_flag:
