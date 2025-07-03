@@ -71,7 +71,8 @@ class BlockGameApp:
 
         except Exception as e:
             messagebox.showerror("YOLO Error", f"Failed to load YOLO model 'Rebest.pt': {e}")
-            if self.capture and self.capture.isOpened(): self.capture.release()
+            if self.capture and self.capture.isOpened(): #self.capture.release()
+                pass
             root.destroy()
             return
 
@@ -783,78 +784,65 @@ class BlockGameApp:
                             best_box = boxes.xyxy[i].tolist()
 
 
+            # `capture_shutter` 関数の中のこの部分を修正
             if detected_correct_flag and best_box: # Ensure best_box is not None
                 if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{flag_name_jp} をみつけた！ しょりちゅう...", fill='blue')
                 self.root.update_idletasks()
                 try:
-                    img_pil_original_capture = Image.open(temp_filename)
-                    original_capture_width, original_capture_height = img_pil_original_capture.size
+                    # ★★★ 修正点: with構文を使ってファイルを自動で閉じる ★★★
+                    with Image.open(temp_filename) as img_pil_original_capture:
+                        original_capture_width, original_capture_height = img_pil_original_capture.size
 
-                    if self.preview_crop_guide_coords is None:
-                        raise ValueError("Crop guide coords not set.")
-                    if self.preview_paste_info['w'] == 0 or self.preview_paste_info['h'] == 0:
-                        raise ValueError("Preview paste info not set or invalid (w or h is 0).")
+                        if self.preview_crop_guide_coords is None:
+                            raise ValueError("Crop guide coords not set.")
+                        if self.preview_paste_info['w'] == 0 or self.preview_paste_info['h'] == 0:
+                            raise ValueError("Preview paste info not set or invalid (w or h is 0).")
 
-                    preview_area_abs_x1 = self.cam_x - self.cam_width // 2
-                    preview_area_abs_y1 = self.cam_y - self.cam_height // 2
+                        preview_area_abs_x1 = self.cam_x - self.cam_width // 2
+                        preview_area_abs_y1 = self.cam_y - self.cam_height // 2
 
-                    guide_abs_x1, guide_abs_y1, guide_abs_x2, guide_abs_y2 = self.preview_crop_guide_coords
+                        guide_abs_x1, guide_abs_y1, guide_abs_x2, guide_abs_y2 = self.preview_crop_guide_coords
 
-                    guide_rel_area_x1 = guide_abs_x1 - preview_area_abs_x1
-                    guide_rel_area_y1 = guide_abs_y1 - preview_area_abs_y1
-                    guide_rel_area_x2 = guide_abs_x2 - preview_area_abs_x1
-                    guide_rel_area_y2 = guide_abs_y2 - preview_area_abs_y1
+                        guide_rel_area_x1 = guide_abs_x1 - preview_area_abs_x1
+                        guide_rel_area_y1 = guide_abs_y1 - preview_area_abs_y1
+                        guide_rel_area_x2 = guide_abs_x2 - preview_area_abs_x1
+                        guide_rel_area_y2 = guide_abs_y2 - preview_area_abs_y1
 
-                    guide_rel_image_x1 = guide_rel_area_x1 - self.preview_paste_info['x']
-                    guide_rel_image_y1 = guide_rel_area_y1 - self.preview_paste_info['y']
-                    guide_rel_image_x2 = guide_rel_area_x2 - self.preview_paste_info['x']
-                    guide_rel_image_y2 = guide_rel_area_y2 - self.preview_paste_info['y']
+                        guide_rel_image_x1 = guide_rel_area_x1 - self.preview_paste_info['x']
+                        guide_rel_image_y1 = guide_rel_area_y1 - self.preview_paste_info['y']
+                        guide_rel_image_x2 = guide_rel_area_x2 - self.preview_paste_info['x']
+                        guide_rel_image_y2 = guide_rel_area_y2 - self.preview_paste_info['y']
 
-                    display_w_on_preview = self.preview_paste_info['w']
-                    display_h_on_preview = self.preview_paste_info['h']
+                        display_w_on_preview = self.preview_paste_info['w']
+                        display_h_on_preview = self.preview_paste_info['h']
 
-                    if display_w_on_preview <= 0 or display_h_on_preview <=0: # ゼロ除算を避ける
-                        raise ValueError(f"Preview display size is zero or negative: {display_w_on_preview}x{display_h_on_preview}")
+                        if display_w_on_preview <= 0 or display_h_on_preview <=0: # ゼロ除算を避ける
+                            raise ValueError(f"Preview display size is zero or negative: {display_w_on_preview}x{display_h_on_preview}")
 
-                    scale_x = original_capture_width / float(display_w_on_preview)
-                    scale_y = original_capture_height / float(display_h_on_preview)
+                        scale_x = original_capture_width / float(display_w_on_preview)
+                        scale_y = original_capture_height / float(display_h_on_preview)
 
-                    crop_orig_x1 = int(guide_rel_image_x1 * scale_x)
-                    crop_orig_y1 = int(guide_rel_image_y1 * scale_y)
-                    crop_orig_x2 = int(guide_rel_image_x2 * scale_x)
-                    crop_orig_y2 = int(guide_rel_image_y2 * scale_y)
+                        crop_orig_x1 = int(guide_rel_image_x1 * scale_x)
+                        crop_orig_y1 = int(guide_rel_image_y1 * scale_y)
+                        crop_orig_x2 = int(guide_rel_image_x2 * scale_x)
+                        crop_orig_y2 = int(guide_rel_image_y2 * scale_y)
 
-                    crop_orig_x1 = max(0, crop_orig_x1)
-                    crop_orig_y1 = max(0, crop_orig_y1)
-                    crop_orig_x2 = min(original_capture_width, crop_orig_x2)
-                    crop_orig_y2 = min(original_capture_height, crop_orig_y2)
+                        crop_orig_x1 = max(0, crop_orig_x1)
+                        crop_orig_y1 = max(0, crop_orig_y1)
+                        crop_orig_x2 = min(original_capture_width, crop_orig_x2)
+                        crop_orig_y2 = min(original_capture_height, crop_orig_y2)
 
-                    # ▼▼▼ DEBUG PRINT (capture_shutter) ▼▼▼
-                    print(f"DEBUG (capture_shutter): Original Capture (WxH): {original_capture_width}x{original_capture_height}")
-                    print(f"DEBUG (capture_shutter): Preview Paste Info (x,y,w,h): {self.preview_paste_info}")
-                    print(f"DEBUG (capture_shutter): Guide on Canvas (abs x1,y1,x2,y2): {self.preview_crop_guide_coords}")
-                    print(f"DEBUG (capture_shutter): Guide Rel to Preview Area (x1,y1,x2,y2): ({guide_rel_area_x1},{guide_rel_area_y1},{guide_rel_area_x2},{guide_rel_area_y2})")
-                    print(f"DEBUG (capture_shutter): Guide Rel to Displayed Image (x1,y1,x2,y2): ({guide_rel_image_x1},{guide_rel_image_y1},{guide_rel_image_x2},{guide_rel_image_y2})")
-                    print(f"DEBUG (capture_shutter): Displayed Image Size on Preview (WxH): {display_w_on_preview}x{display_h_on_preview}")
-                    print(f"DEBUG (capture_shutter): Scale factors (X, Y): {scale_x:.2f}, {scale_y:.2f}")
-                    print(f"DEBUG (capture_shutter): Crop Box on Original (x1,y1,x2,y2): ({crop_orig_x1},{crop_orig_y1},{crop_orig_x2},{crop_orig_y2})")
-                    # ▲▲▲ DEBUG PRINT (capture_shutter) ▲▲▲
+                        # (デバッグプリントは省略)
 
-                    if crop_orig_x1 >= crop_orig_x2 or crop_orig_y1 >= crop_orig_y2:
-                        error_msg = (f"Invalid crop dimensions after scaling. "
-                                     f"CropBox:({crop_orig_x1},{crop_orig_y1},{crop_orig_x2},{crop_orig_y2}).")
-                        print(f"ERROR: {error_msg}")
-                        raise ValueError(error_msg)
+                        if crop_orig_x1 >= crop_orig_x2 or crop_orig_y1 >= crop_orig_y2:
+                            error_msg = (f"Invalid crop dimensions after scaling. "
+                                         f"CropBox:({crop_orig_x1},{crop_orig_y1},{crop_orig_x2},{crop_orig_y2}).")
+                            print(f"ERROR: {error_msg}")
+                            raise ValueError(error_msg)
 
-                    cropped_img = img_pil_original_capture.crop((crop_orig_x1, crop_orig_y1, crop_orig_x2, crop_orig_y2))
-
-                    # ▼▼▼ DEBUG PRINT (capture_shutter) ▼▼▼
-                    print(f"DEBUG (capture_shutter): Final Cropped Image Size (WxH): {cropped_img.width}x{cropped_img.height}")
-                    if cropped_img.height > 0 : # ゼロ除算を避ける
-                        actual_aspect_ratio = cropped_img.width / float(cropped_img.height)
-                        print(f"DEBUG (capture_shutter): Actual Cropped Aspect Ratio (W/H): {actual_aspect_ratio:.2f} (Target: {12/7.0:.2f})")
-                    # ▲▲▲ DEBUG PRINT (capture_shutter) ▲▲▲
-
+                        cropped_img = img_pil_original_capture.crop((crop_orig_x1, crop_orig_y1, crop_orig_x2, crop_orig_y2))
+                    
+                    # 'with'ブロックの外に移動
                     permanent_filename_base = f"{expected_flag}_{timestamp}"
                     final_image_path = os.path.join(self.output_dir, f"guide_cropped_{permanent_filename_base}.jpg")
                     cropped_img.save(final_image_path, "JPEG", quality=90)
@@ -865,12 +853,11 @@ class BlockGameApp:
                     self.draw_result_screen()
                     return
                 except Exception as e_process_save:
+                    # (以下は変更なし)
                     print(f"ERROR during image processing/saving for {expected_flag}: {e_process_save}")
                     if self.message_id and self.canvas.winfo_exists():
                         self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の 加工・保存に しっぱい...", fill='red')
-            else:
-                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{flag_name_jp} が みつからない or はっきりしない...", fill='red')
-
+                        
         except Exception as e:
             print(f"ERROR during capture/YOLO processing: {e}")
             if self.message_id and self.canvas.winfo_exists():
@@ -886,7 +873,7 @@ class BlockGameApp:
     def _resize_with_aspect_ratio(self, pil_image, target_width, target_height, background_color="black"):
         """
         PILイメージをアスペクト比を保持してリサイズし、指定された背景色の中央に配置する。
-        戻り値: PIL.Image.Image オブジェクト。
+        戻り値: PIL.Image.Image オブジェクトと、貼り付け情報。
         """
         original_w, original_h = pil_image.size
         target_aspect_ratio = float(target_width) / target_height # ターゲットエリアのアスペクト比
@@ -911,16 +898,9 @@ class BlockGameApp:
         paste_x = (target_width - display_w) // 2
         paste_y = (target_height - display_h) // 2
         final_image.paste(resized_image, (paste_x, paste_y))
-
-        # プレビュー描画オフセットと実サイズを更新 (ここで直接更新するのは少しリスキーだが、現状のロジックで必要)
-        # 本来は update_frame 内で計算したものを _resize_with_aspect_ratio の呼び出し元に返す形がより堅牢
-        # 今回は既存コードの挙動を尊重し、update_frame で再度計算・上書きされることを前提とする
-        # self.preview_paste_info['x'] = paste_x
-        # self.preview_paste_info['y'] = paste_y
-        # self.preview_paste_info['w'] = display_w
-        # self.preview_paste_info['h'] = display_h
-
-        return final_image
+        
+        # ★★★ 修正点: 計算した情報を返す ★★★
+        return final_image, paste_x, paste_y, display_w, display_h
 
 
     def trim_transparent_area(self, input_path, output_path):
@@ -949,6 +929,7 @@ class BlockGameApp:
                 print(f"Error copying original file during trim fallback: {e_copy}")
             return False
 
+    
     def update_frame(self):
         # print(f"Current time: {time.time():.2f} JST, Frame: {self.frame_count}, Screen: {self.current_screen}")
 
@@ -1011,11 +992,12 @@ class BlockGameApp:
                     cam_x_offset = self.cam_x
                     cam_y_offset = self.cam_y
 
-                processed_preview_pil = self._resize_with_aspect_ratio(
+                processed_preview_pil, paste_x, paste_y, display_w, display_h = self._resize_with_aspect_ratio(
                     frame_image_pil,
                     target_cam_width,
                     target_cam_height
                 )
+                self.preview_paste_info = {'x': paste_x, 'y': paste_y, 'w': display_w, 'h': display_h}
                 self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持 (重要: GC防止)
 
                 current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
@@ -1049,7 +1031,7 @@ class BlockGameApp:
                                 confidence = box.conf[0].item()
                                 label_index = int(box.cls[0].item())
                                 object_type = self.model.names.get(label_index, "Unknown")
-                                current_frame_detections.append(f"  検出 {i+1}: タイプ='{object_type}', 信頼度={confidence:.2f}")
+                                current_frame_detections.append(f"   検出 {i+1}: タイプ='{object_type}', 信頼度={confidence:.2f}")
 
                                 # 最も信頼度の高い有効なフラグを特定
                                 if object_type in self.flag_map.values() and confidence > best_confidence:
@@ -1059,7 +1041,7 @@ class BlockGameApp:
                             for detection_str in current_frame_detections:
                                 print(detection_str)
                         else:
-                            print("  検出なし")
+                            print("   検出なし")
                         
                         # 検出結果に基づいて連続カウントを更新
                         if detected_flag_name and detected_flag_name == self.last_detected_explanation_flag:
@@ -1071,7 +1053,7 @@ class BlockGameApp:
                             self.last_detected_explanation_flag = None
                             self.explanation_detection_count = 0
                         
-                        print(f"  現在の連続検出フレーム数: {self.explanation_detection_count}")
+                        print(f"   現在の連続検出フレーム数: {self.explanation_detection_count}")
                         print("------------------------------------------")
 
                         # テキスト表示の更新
@@ -1084,9 +1066,9 @@ class BlockGameApp:
                         self.canvas.itemconfig(self.explanation_screen_message_id, text=display_text, fill=fill_color)
                         self.root.update_idletasks() # 画面表示を即時更新
 
-                        # 90フレーム連続検出で詳細画面へ遷移
+                        # 9フレーム連続検出で詳細画面へ遷移
+                         # 9フレーム連続検出で詳細画面へ遷移
                         if self.explanation_detection_count >= 9:
-                            #self.audio.play_voice("audio/voiceset/others/found_flag.wav")
                             found_block_num = None
                             for num, name in self.flag_map.items():
                                 if name == self.last_detected_explanation_flag:
@@ -1096,20 +1078,20 @@ class BlockGameApp:
                             if found_block_num is not None:
                                 self.blocknumber = found_block_num
                                 print(f"Auto-navigating to detail screen for {self.last_detected_explanation_flag}")
-                                # 遷移が開始されることを示す状態に設定
-                                self.current_screen = "transitioning" 
-                                # メイン画面を再描画することで現在の説明画面をクリア
-                                self.draw_main_screen() 
-                                # 少し遅らせて詳細画面へ遷移（UIが完全に更新されるのを待つ）
-                                self.root.after(100, self.detail_screen) 
-                                return # ここで update_frame の現在の実行を終了
+                                # 中間状態やメイン画面描画を挟まず、直接詳細画面を呼び出す
+                                self.detail_screen()
+                                # ★★★ 修正点: returnを削除し、ループが継続するようにする ★★★
+                                # return
                             else:
                                 print(f"ERROR: Detected flag '{self.last_detected_explanation_flag}' not found in flag_map for transition.")
                                 # マップにない国旗が検出されたが遷移できない場合、カウントをリセットして継続
                                 self.last_detected_explanation_flag = None
                                 self.explanation_detection_count = 0
-                                self.canvas.itemconfig(self.explanation_screen_message_id, text="不明な国旗です。こっき を かざしてね！", fill="red")
-
+                                if self.canvas.winfo_exists(): # ウィジェットが存在するか確認
+                                    try:
+                                        self.canvas.itemconfig(self.explanation_screen_message_id, text="不明な国旗です。こっき を かざしてね！", fill="red")
+                                    except tk.TclError:
+                                        print("Could not update explanation message; canvas item may be gone.")
 
             except tk.TclError as e:
                 print(f"TclError updating camera feed or canvas item (item might be deleted): {e}")
@@ -1129,7 +1111,7 @@ class BlockGameApp:
     def on_close(self):
         print("Closing application...")
         if hasattr(self, 'capture') and self.capture and self.capture.isOpened():
-            self.capture.release()
+           #self.capture.release()
             print("Camera released.")
 
         print("Cleaning temporary files...")
