@@ -268,7 +268,7 @@ class BlockGameApp:
         self.canvas.create_rectangle(230, 490, 540, 590, fill="red", width=2, tags="explanation_button")
         self.canvas.create_text(385, 540, text="くにのせつめいをみる", font=font_title2, fill="white",tags="explanation_button")
         self.canvas.create_rectangle(630, 490, 770, 590, fill="blue", width=2, tags="reset")
-        self.canvas.create_text(700, 540, text="りせっと", font=font_title2, fill="white")
+        self.canvas.create_text(700, 540, text="りせっと", font=font_title2, fill="white", tags="reset")
 
         # === BGM再生（即時） ===
         self._ensure_camera_is_open() 
@@ -421,6 +421,8 @@ class BlockGameApp:
         # プレビュー画像の貼り付け情報（w/hが0だとシャッターが有効にならない）
         self.preview_paste_info['w'] = self.cam_width  # 例: 300
         self.preview_paste_info['h'] = int(self.cam_width * 7 / 12)  # 12:7 の比率に従った高さ
+
+
 
     def draw_result_screen(self):
         """検知成功後に表示する結果画面を描画する"""
@@ -592,6 +594,7 @@ class BlockGameApp:
         self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
         self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
+
 
     def detail_screen(self): # Currently unused
         # 国のデータ（画像ファイル・説明文）
@@ -780,9 +783,17 @@ class BlockGameApp:
 
     def reset_image(self):
         for flag in self.captured_images:
-            self.captured_images[flag]=None
-        print("All caputured flags have been reset.")
+            filepath = self.captured_images[flag]
+            if filepath and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)  # ファイルを削除
+                except Exception as e:
+                    print(f"Failed to delete {filepath}: {e}")
+            self.captured_images[flag] = None
+        print("All captured flags have been reset.")
         self.draw_main_screen()
+        
+        self.update_frame()
 
 
     def mouse_event(self, event):
