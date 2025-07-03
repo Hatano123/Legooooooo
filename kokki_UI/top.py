@@ -46,7 +46,7 @@ class BlockGameApp:
         os.makedirs(self.output_dir, exist_ok=True)
 
         # --- Camera Setup ---
-        self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        self.capture = cv2.VideoCapture(1, cv2.CAP_DSHOW)#高速バックエンドらしい
         if not self.capture.isOpened():
             messagebox.showerror("Error", "Cannot access the camera")
             root.destroy()
