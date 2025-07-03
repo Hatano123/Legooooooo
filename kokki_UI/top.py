@@ -955,32 +955,6 @@ class BlockGameApp:
         self.draw_main_screen()
         print("--- Reset Complete ---")
 
-    def trim_transparent_area(self, input_path, output_path):
-        try:
-            img = Image.open(input_path).convert("RGBA")
-            bbox = img.getbbox()
-            if bbox:
-                img_cropped = img.crop(bbox)
-                if img_cropped.width > 0 and img_cropped.height > 0:
-                    img_cropped.save(output_path, "PNG")
-                    return True
-                else:
-                    print(f"Trimming resulted in empty image for {input_path}. BBox: {bbox}")
-                    # If trimming fails to produce a valid image, copy original as fallback
-                    shutil.copy(input_path, output_path)
-                    return False # Indicate trimming itself might have an issue but we have a file
-            else:
-                shutil.copy(input_path, output_path)
-                return True
-        except Exception as e:
-            print(f"Error trimming transparent image '{input_path}': {e}")
-            try: # Fallback: copy original to output if trimming errors out
-                shutil.copy(input_path, output_path)
-                print(f"Fell back to copying original due to trim error for {input_path}")
-            except Exception as e_copy:
-                print(f"Error copying original file during trim fallback: {e_copy}")
-            return False
-
     
     def update_frame(self):
         # print(f"Current time: {time.time():.2f} JST, Frame: {self.frame_count}, Screen: {self.current_screen}")
