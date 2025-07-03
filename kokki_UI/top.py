@@ -772,7 +772,10 @@ class BlockGameApp:
         if self.message_id and self.canvas.winfo_exists():
             self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
             self.audio.play_voice("audio/voiceset/others/check_picture.wav")
+        
         self.root.update_idletasks()
+
+        
 
         timestamp = int(time.time())
         temp_filename = f"captured_image_temp_{self.blocknumber}_{timestamp}.jpg"
@@ -872,6 +875,11 @@ class BlockGameApp:
                     print(f"ERROR during image processing/saving for {expected_flag}: {e_process_save}")
                     if self.message_id and self.canvas.winfo_exists():
                         self.canvas.itemconfig(self.message_id, text=f"エラー: {expected_flag} の 加工・保存に しっぱい...", fill='red')
+            
+            else:
+                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"{flag_name_jp} が みつからない or はっきりしない...", fill='red')
+            
+
 
         except Exception as e:
             print(f"ERROR during capture/YOLO processing: {e}")
