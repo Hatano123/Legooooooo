@@ -11,7 +11,6 @@ import io
 import shutil
 from Audio import Audio
 import random
-from modutest import play_video_once,run_simple_video_player_app
 #import threading
 import subprocess
 
