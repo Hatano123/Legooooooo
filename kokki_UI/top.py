@@ -11,6 +11,10 @@ import io
 import shutil
 from Audio import Audio
 import random
+from modutest import play_video_once,run_simple_video_player_app
+#import threading
+import subprocess
+
 
 class BlockGameApp:
 
@@ -46,7 +50,7 @@ class BlockGameApp:
         os.makedirs(self.output_dir, exist_ok=True)
 
         # --- Camera Setup ---
-        self.capture = cv2.VideoCapture(1, cv2.CAP_DSHOW)#高速バックエンドらしい
+        self.capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)#高速バックエンドらしい
         if not self.capture.isOpened():
             messagebox.showerror("Error", "Cannot access the camera")
             root.destroy()
@@ -258,6 +262,17 @@ class BlockGameApp:
                                      fill="purple", outline="black", tags="explanation_button")
         self.canvas.create_text((explanation_btn_x1 + explanation_btn_x2) // 2, (explanation_btn_y1 + explanation_btn_y2) // 2,
                                 text="せつめい", font=font_subject, fill="white", tags="explanation_button")
+        # --- ここまで ---
+
+        # --- 新しい「留学」ボタンの追加 ---
+        study_abroad_btn_x1 = 340
+        study_abroad_btn_y1 = 530
+        study_abroad_btn_x2 = 460
+        study_abroad_btn_y2 = 580
+        self.canvas.create_rectangle(study_abroad_btn_x1, study_abroad_btn_y1, study_abroad_btn_x2, study_abroad_btn_y2,
+                                     fill="purple", outline="black", tags="study_abroad_button")
+        self.canvas.create_text((study_abroad_btn_x1 + study_abroad_btn_x2) // 2, (study_abroad_btn_y1 + study_abroad_btn_y2) // 2,
+                                text="留学", font=font_subject, fill="white", tags="study_abroad_button")
         # --- ここまで ---
         
         reset_btn_x1 = 50
@@ -714,6 +729,42 @@ class BlockGameApp:
             if tag == "reset_button":
                 print("Reset button clicked.")
                 self.reset_all()
+                return
+            
+            if tag == "study_abroad_button":    
+                print("Study abroad button clicked. Navigating to study abroad screen.")
+
+                # 1. 現在のBGM音量を保存し、Audioクラスのメソッド経由で音量を下げる
+                original_volume = self.audio.bgm_volume
+                lowered_volume = 0.02
+                print(f"BGMの音量を下げます (-> {lowered_volume})")
+                self.audio.set_bgm_volume(lowered_volume) # ★★★ Audioクラスのメソッドを使用 ★★★
+
+                try:
+                    # 動画ファイルをランダムに選択
+                    rand_ryugaku = random.randint(1,2)
+                    if rand_ryugaku == 1:
+                        video_path_for_thread = r'.\movie\ryugaku1.mp4'
+                    elif rand_ryugaku == 2:
+                        video_path_for_thread = r'.\movie\ryugaku2.mp4'
+                    else:
+                        video_path_for_thread = r'.\movie\ryugaku3.mp4'
+                    
+                    # 2. 動画を再生
+                    command = ['ffplay', '-autoexit', video_path_for_thread]
+                    print(f"動画を再生します: {video_path_for_thread}")
+                    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+                except FileNotFoundError:
+                    print("エラー: 'ffplay'コマンドが見つかりませんでした。")
+                    print("VLCなど、PCにインストールされている別のプレーヤーのコマンドに書き換えてください。")
+                except Exception as e:
+                    print(f"動画再生中にエラーが発生しました: {e}")
+                finally:
+                    # 3. 再生終了後、Audioクラスのメソッド経由で音量を元に戻す
+                    print(f"BGMの音量を元に戻します (-> {original_volume})")
+                    self.audio.set_bgm_volume(original_volume) # ★★★ Audioクラスのメソッドを使用 ★★★
+                
                 return
 
             for num, name in self.flag_map.items():

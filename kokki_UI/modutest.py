@@ -3,7 +3,7 @@ import os
 # simple_video_player_module から動画再生関数をインポート
 from videomodu import play_video_once
 
-def run_simple_video_player_app():
+def run_simple_video_player_app(video_file_path):
     """
     simple_video_player_module を呼び出して動画を再生するアプリケーション。
     """
@@ -11,7 +11,7 @@ def run_simple_video_player_app():
 
     # 再生したい動画ファイルのパスを指定
     # このスクリプトと同じディレクトリにある 'video' フォルダ内の 'ryugaku.mp4' を想定
-    video_file_path = r'.\video\ryugaku.mp4'
+    #video_file_path = r'.\video\ryugaku.mp4'
 
     # 動画ファイルが存在するか確認
     if not os.path.exists(video_file_path):
