@@ -1165,32 +1165,6 @@ class BlockGameApp:
                 )
                 self.image_tk = ImageTk.PhotoImage(image=processed_preview_pil) # 参照を保持 (重要: GC防止)
 
-               # current_cam_feed_image_id = getattr(self, cam_feed_image_id_ref)
-                #current_cam_feed_text_id = getattr(self, cam_feed_text_id_ref)
-
-                # # カメラフィード画像の更新または作成
-                # if current_cam_feed_image_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_image_id):
-                #     self.canvas.itemconfig(current_cam_feed_image_id, image=self.image_tk)
-                # elif self.canvas.winfo_exists():
-                #     setattr(self, cam_feed_image_id_ref, self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk))
-                #     # カメラフィードのテキストがあれば削除
-                #     if current_cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(current_cam_feed_text_id):
-                #         self.canvas.delete(current_cam_feed_text_id)
-                #         setattr(self, cam_feed_text_id_ref, None) # 削除したらIDをNoneにする
-
-                # if self.current_screen == "next":
-                #     # --- next画面のカメラフィード更新 ---
-                #     if self.current_screen == "next":
-                #         self.cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
-                #         if self.cam_feed_text_id and self.canvas.winfo_exists() and self.canvas.type(self.cam_feed_text_id):
-                #             self.canvas.delete(self.cam_feed_text_id)
-                #             self.cam_feed_text_id = None
-                #     # --- before_detail画面のカメラフィード更新 ---
-                #     elif self.current_screen == "before_detail":
-                #         self.explanation_cam_feed_image_id = self.canvas.create_image(cam_x_offset, cam_y_offset, anchor=tk.CENTER, image=self.image_tk)
-                #         # explanation_screen_message_id は検出フィードバック用なので削除しない
-                #         pass
-
                 # [FIXED] カメラフィード画像の更新または作成ロジックを修正
                 if self.current_screen == "next":
                     if self.cam_feed_image_id is None: # 画像がCanvasにまだない場合
