@@ -12,6 +12,7 @@ import io # Needed for processing rembg output
 import shutil # For copying file in trim_transparent_area
 from Audio import Audio
 import random
+import country_narrator
 
 class BlockGameApp: 
     
@@ -778,7 +779,18 @@ class BlockGameApp:
         
         self.audio.stop_bgm()
         self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
-        self.audio.play_voice(selected_info["voice"])
+        #self.audio.play_voice(selected_info["voice"])
+        # ご自身のGoogle AI (Gemini) APIキーに書き換えてください
+        GEMINI_API_KEY = "AIzaSyCBapA6ViIAj6xc9Yau4zf294PBK1_bi7I" # ★ここにAPIキーを設定してください
+        # VOICEVOXの設定
+        VOICEVOX_URL = "http://127.0.0.1:50021"
+        SPEAKER_ID = 3 # 例: 1=四国めたん(ノーマル), 3=ずんだもん(ノーマル)
+        country_narrator.narrate_country_info(
+                country_name=flag_name,
+                api_key=GEMINI_API_KEY,
+                speaker_id=SPEAKER_ID,
+                voicevox_url=VOICEVOX_URL
+            )
         
 
     def reset_image(self):
