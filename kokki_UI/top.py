@@ -11,10 +11,8 @@ import io
 import shutil
 from Audio import Audio
 import random
-
-#from modutest import play_video_once,run_simple_video_player_app
-
-#import threading
+from modutest import play_video_once,run_simple_video_player_app
+import threading
 import subprocess
 
 
@@ -22,7 +20,7 @@ class BlockGameApp:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("こっきでわくわく")
+        self.root.title("LEGOOOOOo")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
 
@@ -204,7 +202,7 @@ class BlockGameApp:
             self.bg_canvas_id = None
         # --- End of Main screen specific background ---
 
-        self.canvas.create_text(400, 30, text="こっきでわくわく", font=("Helvetica", 24, "bold"), fill="black")
+        self.canvas.create_text(400, 30, text="LEGOOOOOo", font=("Helvetica", 24, "bold"), fill="black")
         self.canvas.create_text(400, 70, text="こっきをつくろう！", font=font_subject, fill="black")
         self.canvas.create_text(400, 110, text="つくりたい くに をクリックしてね！", font=font_subject, fill="black")
 
