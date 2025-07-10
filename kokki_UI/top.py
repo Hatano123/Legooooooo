@@ -13,6 +13,7 @@ import shutil # For copying file in trim_transparent_area
 from Audio import Audio
 import random
 import country_narrator
+import threading 
 
 class BlockGameApp: 
     
