@@ -719,48 +719,16 @@ class BlockGameApp:
 
     def mouse_event(self, event):
         x, y = event.x, event.y
-    # クリックされた座標にあるすべてのアイテムを取得し、順序を反転して手前のものから調べる
         items = self.canvas.find_overlapping(x, y, x, y)
-
-    # ログ出力でitemsの内容を確認する
-    # print(f"Items at click ({x},{y}): {items}") 
-
-        clicked_tags = self.canvas.gettags((items[-1]))
-
-        target_tag = None
-        # Prioritize specific action tags first
-        if "explanation_button" in clicked_tags: # 変更
-            target_tag = "explanation_button" # 変更
-        elif "reset" in clicked_tags:
-            target_tag = "reset"
-        elif "shutter" in clicked_tags:
-            target_tag = "shutter"
-        elif "back_to_main" in clicked_tags:
-            target_tag = "back_to_main"
-        elif "back_to_main_from_result" in clicked_tags:
-            target_tag = "back_to_main_from_result"
-        else: # If no specific action tags, check for flag names
-            for flag_name_en in self.flag_map.values():
-                if flag_name_en in clicked_tags:
-                    target_tag = flag_name_en
-                    break
-
-        if not target_tag:
-            print(f"No relevant tag found for click at ({x},{y}). All tags for items: {clicked_tags}")
+        if not items:
             return
 
-        print(f"Clicked on item with target tag: {target_tag} on screen: {self.current_screen}")
-
-        if self.current_screen == "main":
-            if target_tag == "explanation_button": # 変更
-                self.before_detail_screen() # 変更
-
-        if not target_tag:
-        # 処理すべきタグが見つからなかった場合
-        # print(f"No relevant tag found for click at ({x},{y}). All tags for items: {[self.canvas.gettags(item) for item in items]}")
+        tags = self.canvas.gettags(items[-1])
+        if not tags:
             return
 
-        print(f"Clicked on item with target tag: {target_tag} on screen: {self.current_screen}")
+        tag = tags[0]
+        print(f"Clicked on item with tags: {tags}, primary tag: {tag} on screen: {self.current_screen}")
 
         if self.current_screen == "main":
             if tag == "explanation_button":
@@ -814,32 +782,30 @@ class BlockGameApp:
                     self.blocknumber = num
                     print(f"Selected flag: {name} (Block number: {self.blocknumber})")
 
-                if self.captured_images.get(target_tag):
-                    self.detail_screen()
-                else:
-                    self.draw_next_screen()
-            else:
-                print(f"Unhandled click on main screen with tag: {target_tag}")
-    # ... その他の current_screen の処理 ...
+                    # ここで分岐：画像がキャプチャ済みなら詳細画面、それ以外は撮影画面
+                    if self.captured_images.get(name):
+                        self.detail_screen()
+                    else:
+                        self.draw_next_screen()
+                    return  # 必須：1つ見つかったら終了
+
+            print(f"Unhandled click on main screen with tag: {tag}")
+
         elif self.current_screen == "next":
-            if "shutter" in clicked_tags:
+            if tag == "shutter":
                 print("Shutter button clicked")
                 self.capture_shutter()
-            elif "back_to_main" in clicked_tags:
+            elif tag == "back_to_main":
                 print("Back to main clicked from next screen")
                 self.draw_main_screen()
 
         elif self.current_screen == "result":
-            if "back_to_main_from_result" in clicked_tags:
+            if tag == "back_to_main_from_result":
                 print("Back to main from result screen clicked")
                 self.draw_main_screen()
 
-        elif self.current_screen == "before_detail":
-            if target_tag == "back_to_main" :
-                self.draw_main_screen()
-
         elif self.current_screen == "detail":
-            if "back_to_main" in clicked_tags:
+            if tag == "back_to_main":
                 print("Back to main from detail clicked")
                 self.draw_main_screen()
 
