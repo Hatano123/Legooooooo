@@ -465,6 +465,13 @@ class BlockGameApp:
         self.explanation_cam_feed_image_id = None # Explanation screen's camera image ID
         self.image_tk = None # PhotoImage reference
 
+        # ★★★ 進捗テキスト（カメラ画像の下）を追加（フォントサイズ2倍に変更） ★★★
+        font_subject_big = font.Font(root=self.root, family=font_subject.cget('family'), size=font_subject.cget('size')*2)
+        self.explanation_progress_text_id = self.canvas.create_text(
+            400, 460, # カメラ画像の下あたり
+            text="連続検出 0 / 5", fill="orange", font=font_subject_big
+        )
+
         # 戻るボタンを左下に配置
         self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main_from_explanation")
         self.canvas.create_text(150, 555, text="← もどる", font=font_subject, fill="black", tags="back_to_main_from_explanation")
@@ -978,7 +985,7 @@ class BlockGameApp:
     
     def reset_all(self):
         """
-        全てのキャプチャ画像と状態をリセットして初期状態に戻します。
+        全てのキャプチャ画像と状態をリセットして初期状態に戻ります。
         """
         # 確認ダイアログを表示
         if not messagebox.askyesno("かくにん", "ほんとうに すべてのデータをけして リセットしますか？"):
@@ -1143,8 +1150,16 @@ class BlockGameApp:
                         self.canvas.itemconfig(self.explanation_screen_message_id, text=display_text, fill=fill_color)
                         self.root.update_idletasks() # 画面表示を即時更新
 
+                        # ★★★ 進捗テキストの更新（国名付き） ★★★
+                        if hasattr(self, 'explanation_progress_text_id') and self.explanation_progress_text_id:
+                            if self.last_detected_explanation_flag:
+                                display_jp_name = self.flag_names_jp.get(self.last_detected_explanation_flag, self.last_detected_explanation_flag)
+                                progress_text = f"{display_jp_name} 連続検出 {self.explanation_detection_count} / 5"
+                            else:
+                                progress_text = "国をカメラにかざして"
+                            self.canvas.itemconfig(self.explanation_progress_text_id, text=progress_text)
+
                         # 9フレーム連続検出で詳細画面へ遷移
-                         # 9フレーム連続検出で詳細画面へ遷移
                         if self.explanation_detection_count >= 5:
                             found_block_num = None
                             for num, name in self.flag_map.items():
