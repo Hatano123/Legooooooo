@@ -14,6 +14,7 @@ import random
 from modutest import play_video_once,run_simple_video_player_app
 import threading
 import subprocess
+import stat
 
 
 class BlockGameApp:
@@ -1007,7 +1008,22 @@ class BlockGameApp:
                 print(f"Directory '{self.output_dir}' has been recreated.")
             except Exception as e:
                 print(f"Error while resetting output directory: {e}")
-                messagebox.showerror("リセットエラー", f"画像の保存フォルダのリセット中にエラーがおきました。\n{e}")
+                
+                # 読み取り専用ファイルを強制削除する関数を定義
+                def remove_readonly(func, path, _):
+                    try:
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    except Exception as chmod_error:
+                        print(f"remove_readonly error: {chmod_error}")
+                try:
+                    shutil.rmtree(self.output_dir, onerror=remove_readonly)
+                    os.makedirs(self.output_dir, exist_ok=True)
+                    print(f"Directory '{self.output_dir}' was forcibly deleted and recreated.")
+                except Exception as e2:
+                    print(f"Error while forcibly resetting output directory: {e2}")
+
+                    messagebox.showerror("リセットエラー", f"画像の保存フォルダのリセット中にエラーがおきました。\n{e}")
         
         # 3. メイン画面を再描画して見た目を更新
         self.draw_main_screen()
