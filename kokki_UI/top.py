@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import messagebox, font
 from PIL import Image, ImageTk # Removed ImageFont as it wasn't used
@@ -8,18 +7,26 @@ import os
 from ultralytics import YOLO
 from rembg import remove
 import time
-import io # Needed for processing rembg output
 import shutil # For copying file in trim_transparent_area
 from Audio import Audio
 import random
 import country_narrator
-import threading 
+import threading
+import requests
+import json
+import io # Needed for processing rembg output
+import pygame
 
 class BlockGameApp: 
     
     def __init__(self, root):
         self.root = root
         self.root.title("こっきでわくわく")
+        try:
+            pygame.mixer.init()
+            print("Pygame mixer initialized successfully.")
+        except pygame.error as e:
+            messagebox.showerror("Audio Error", f"音声の初期化に失敗しました: {e}")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
         # --- Configuration ---
@@ -780,19 +787,59 @@ class BlockGameApp:
         
         self.audio.stop_bgm()
         self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
-        #self.audio.play_voice(selected_info["voice"])
-        # ご自身のGoogle AI (Gemini) APIキーに書き換えてください
         GEMINI_API_KEY = "AIzaSyCBapA6ViIAj6xc9Yau4zf294PBK1_bi7I" # ★ここにAPIキーを設定してください
-        # VOICEVOXの設定
         VOICEVOX_URL = "http://127.0.0.1:50021"
-        SPEAKER_ID = 3 # 例: 1=四国めたん(ノーマル), 3=ずんだもん(ノーマル)
-        country_narrator.narrate_country_info(
-                country_name=flag_name,
-                api_key=GEMINI_API_KEY,
-                speaker_id=SPEAKER_ID,
-                voicevox_url=VOICEVOX_URL
-            )
-        
+        SPEAKER_ID = 3 
+
+        # スレッドを作成して、ターゲットに関数を指定
+        narrate_thread = threading.Thread(
+            target=self._narrate_in_background, 
+            args=(flag_name, GEMINI_API_KEY, SPEAKER_ID, VOICEVOX_URL),
+            daemon=True  # メインアプリ終了時にスレッドも強制終了する
+        )
+        # スレッドを開始
+        narrate_thread.start()
+    
+    def _narrate_in_background(self, country_name, api_key, speaker_id, voicevox_url):
+        """
+        [バックグラウンド] テキスト生成とVOICEVOXからのWAVデータ取得を行う
+        """
+        # 1. テキストを生成
+        info_text = country_narrator.narrate_country_info(country_name, api_key)
+        if not info_text:
+            return
+
+        # 2. VOICEVOXからWAVデータを取得
+        try:
+            params = {"text": info_text, "speaker": speaker_id}
+            res_query = requests.post(f"{voicevox_url}/audio_query", params=params, timeout=10)
+            res_query.raise_for_status()
+            query_data = res_query.json()
+
+            headers = {"Content-Type": "application/json"}
+            res_synth = requests.post(f"{voicevox_url}/synthesis", headers=headers, params={"speaker": speaker_id}, data=json.dumps(query_data), timeout=10)
+            res_synth.raise_for_status()
+            wav_data = res_synth.content
+
+            # 3. メインスレッドに再生を依頼
+            if wav_data:
+                self.root.after(0, self._play_narration_safely, wav_data)
+
+        except Exception as e:
+            print(f"VOICEVOXからの音声取得中にエラー: {e}")
+    
+    def _play_narration_safely(self, wav_data):
+        """
+        [メインスレッド] PygameのSoundオブジェクトでナレーションを再生する
+        """
+        print("Playing narration using Pygame on main thread...")
+        try:
+            # メモリ上のWAVデータから直接Soundオブジェクトを作成
+            narration_sound = pygame.mixer.Sound(io.BytesIO(wav_data))
+            # BGMとは別のチャンネルで再生
+            narration_sound.play()
+        except Exception as e:
+            print(f"Pygameでのナレーション再生中にエラー: {e}")
 
     def reset_image(self):
         for flag in self.captured_images:
@@ -1304,6 +1351,9 @@ class BlockGameApp:
         if hasattr(self, 'capture') and self.capture and self.capture.isOpened():
             self.capture.release()
             print("Camera released.")
+
+        pygame.quit()
+        print("Pygame resources released.")
 
         print("Cleaning temporary files...")
         for item in os.listdir('.'):
