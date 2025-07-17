@@ -16,7 +16,7 @@ import threading
 import subprocess
 
 
-class BlockGameApp: 
+class BlockGameApp:
 
     def __init__(self, root):
         self.root = root
@@ -44,10 +44,6 @@ class BlockGameApp:
         self.frame_count = 0
 
         self.image_refs = []
-        self.background_flag_tk = None
-
-        self.explanation_detection_count = 0
-        self.last_detected_explanation_flag = None
 
         # Output directory for processed images
         self.output_dir = "output_images"
@@ -378,10 +374,6 @@ class BlockGameApp:
         self.cam_feed_image_id = None # update_frameでカメラ画像アイテムIDを格納
         self.image_tk = None # update_frameでPhotoImage参照を保持
 
-        self.cam_feed_image_id = None # next画面のカメラIDをリセット
-        self.cam_feed_text_id = self.canvas.create_text(self.cam_x, self.cam_y, text="カメラ準備中…", fill="white",font=font_subject) # next画面のカメラテキストIDをリセット
-        self.explanation_cam_feed_image_id = None # explanation画面のカメラIDをリセット
-        self.image_tk = None # PhotoImage参照をクリア
         # --- アスペクト比保持プレビューに合わせた7:12ガイド枠の描画 ---
         target_guide_aspect_ratio_wh = 12.0 / 7.0
 
@@ -412,10 +404,8 @@ class BlockGameApp:
         # --- ガイド枠描画ここまで ---
 
         # シャッターボタン
-        #self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
-        #self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
-        self.shutter_button_rect_id = self.canvas.create_rectangle(300, 450, 500, 500, fill="gray", outline="black", tags="shutter_disabled")
-        self.shutter_button_text_id = self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter_disabled")
+        self.canvas.create_rectangle(300, 450, 500, 500, fill="red", outline="black", tags="shutter")
+        self.canvas.create_text(400, 475, text="シャッター！", font=font_subject, fill="white", tags="shutter")
 
         # 戻るボタン
         self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main")
@@ -474,6 +464,13 @@ class BlockGameApp:
         )
         self.explanation_cam_feed_image_id = None # Explanation screen's camera image ID
         self.image_tk = None # PhotoImage reference
+
+        # ★★★ 進捗テキスト（カメラ画像の下）を追加（フォントサイズ2倍に変更） ★★★
+        font_subject_big = font.Font(root=self.root, family=font_subject.cget('family'), size=font_subject.cget('size')*2)
+        self.explanation_progress_text_id = self.canvas.create_text(
+            400, 460, # カメラ画像の下あたり
+            text="連続検出 0 / 5", fill="orange", font=font_subject_big
+        )
 
         # 戻るボタンを左下に配置
         self.canvas.create_rectangle(50, 530, 250, 580, fill="lightblue", outline="black", tags="back_to_main_from_explanation")
@@ -761,7 +758,7 @@ class BlockGameApp:
                         video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     
                     # 2. 動画を再生
-                    command = ['ffplay', '-autoexit', '-x', '800', '-y', '600', video_path_for_thread]
+                    command = ['ffplay', '-autoexit','-x', '1200', '-y', '900', video_path_for_thread]
                     print(f"動画を再生します: {video_path_for_thread}")
                     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -817,12 +814,11 @@ class BlockGameApp:
 
     def capture_shutter(self):
         if self.last_frame is None:
-            if not (hasattr(self, 'capture') and self.capture and self.capture.isOpened()):
-                if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
+            if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="カメラの じゅんびができてないよ")
             return
         if self.blocknumber is None:
-            if self.message_id and self.canvas.winfo_exists(): 
-                self.canvas.itemconfig(self.message_id, text="エラー: フラッグが選択されていません")
+            if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text="エラー: フラッグが選択されていません")
+            return
 
         expected_flag = self.flag_map.get(self.blocknumber)
         flag_name_en = self.flag_map[self.blocknumber]
@@ -830,9 +826,6 @@ class BlockGameApp:
         if not expected_flag:
             if self.message_id and self.canvas.winfo_exists(): self.canvas.itemconfig(self.message_id, text=f"エラー: 不明なブロック番号 {self.blocknumber}")
             return
-        error_msg=""
-        if self.preview_paste_info['w'] <= 0 or self.preview_paste_info['h'] <= 0:
-            print(f"ERROR: {error_msg} (w:{self.preview_paste_info['w']}, h:{self.preview_paste_info['h']})")
 
         if self.message_id and self.canvas.winfo_exists():
             self.canvas.itemconfig(self.message_id, text="しゃしん を しらべてるよ...", fill='orange')
@@ -992,7 +985,7 @@ class BlockGameApp:
     
     def reset_all(self):
         """
-        全てのキャプチャ画像と状態をリセットして初期状態に戻します。
+        全てのキャプチャ画像と状態をリセットして初期状態に戻ります。
         """
         # 確認ダイアログを表示
         if not messagebox.askyesno("かくにん", "ほんとうに すべてのデータをけして リセットしますか？"):
@@ -1157,8 +1150,16 @@ class BlockGameApp:
                         self.canvas.itemconfig(self.explanation_screen_message_id, text=display_text, fill=fill_color)
                         self.root.update_idletasks() # 画面表示を即時更新
 
+                        # ★★★ 進捗テキストの更新（国名付き） ★★★
+                        if hasattr(self, 'explanation_progress_text_id') and self.explanation_progress_text_id:
+                            if self.last_detected_explanation_flag:
+                                display_jp_name = self.flag_names_jp.get(self.last_detected_explanation_flag, self.last_detected_explanation_flag)
+                                progress_text = f"{display_jp_name} 連続検出 {self.explanation_detection_count} / 5"
+                            else:
+                                progress_text = "国をカメラにかざして"
+                            self.canvas.itemconfig(self.explanation_progress_text_id, text=progress_text)
+
                         # 9フレーム連続検出で詳細画面へ遷移
-                         # 9フレーム連続検出で詳細画面へ遷移
                         if self.explanation_detection_count >= 5:
                             found_block_num = None
                             for num, name in self.flag_map.items():
