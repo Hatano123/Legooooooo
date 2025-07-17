@@ -290,7 +290,6 @@ class BlockGameApp:
         
 
         # === BGM再生（即時） ===
-        self._ensure_camera_is_open() 
         self.audio.stop_bgm()
         self.audio.play_bgm("audio/bgmset/lalalabread.mp3")
         #self.canvas.after(100, lambda: self.audio.play_voice("audio/voiceset/make/make_flags.wav"))
