@@ -749,7 +749,7 @@ class BlockGameApp:
 
                 try:
                     # 動画ファイルをランダムに選択
-                    rand_ryugaku = random.randint(1,2)
+                    rand_ryugaku = random.randint(1,3)
                     if rand_ryugaku == 1:
                         video_path_for_thread = r'.\movie\ryugaku1.mp4'
                     elif rand_ryugaku == 2:
@@ -758,7 +758,7 @@ class BlockGameApp:
                         video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     
                     # 2. 動画を再生
-                    command = ['ffplay', '-autoexit', video_path_for_thread]
+                    command = ['ffplay', '-autoexit','-x', '1200', '-y', '900', video_path_for_thread]
                     print(f"動画を再生します: {video_path_for_thread}")
                     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
