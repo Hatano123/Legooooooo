@@ -23,6 +23,14 @@ class Audio:
         """
         再生中のBGMの音量を設定します。
         """
+        # volumeがNoneの場合、デフォルトの音量（例えば0.1）に設定する
+        if volume is None:
+            print("音量にNoneが指定されたため、デフォルト値に戻します。")
+            volume = 0.1  # ここにデフォルトの音量を設定
+
         # pygame.mixer.music.set_volumeは0.0から1.0の範囲の値を受け取ります
-        if 0.0 <= volume and 1.0 >= volume:
+        if 0.0 <= volume <= 1.0:
             pygame.mixer.music.set_volume(volume)
+        else:
+        # このエラー処理もあるとより丁寧です
+            print(f"警告: 無効な音量値が指定されました: {volume}")
