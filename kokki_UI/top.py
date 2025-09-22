@@ -1029,6 +1029,7 @@ class BlockGameApp:
         self.draw_main_screen()
         print("--- Reset Complete ---")
 
+
     
     def update_frame(self):
         # print(f"Current time: {time.time():.2f} JST, Frame: {self.frame_count}, Screen: {self.current_screen}")
