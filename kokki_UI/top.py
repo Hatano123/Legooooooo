@@ -760,6 +760,7 @@ class BlockGameApp:
                     
                     # 2. 動画を再生
                     command = ['ffplay', '-autoexit','-x', '1200', '-y', '900', video_path_for_thread]
+
                     print(f"動画を再生します: {video_path_for_thread}")
                     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
