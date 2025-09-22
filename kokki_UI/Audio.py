@@ -5,7 +5,7 @@ class Audio:
         pass
     def play_bgm(self, file):
         if not pygame.mixer.music.get_busy():
-            pygame.mixer.music.set_volume(0.35)
+            pygame.mixer.music.set_volume(0.1)
             pygame.mixer.music.load(file)
             pygame.mixer.music.play(-1)  # 無限ループ
 
@@ -24,5 +24,5 @@ class Audio:
         再生中のBGMの音量を設定します。
         """
         # pygame.mixer.music.set_volumeは0.0から1.0の範囲の値を受け取ります
-        if 0.0 <= volume <= 1.0:
+        if 0.0 <= volume and 1.0 >= volume:
             pygame.mixer.music.set_volume(volume)

@@ -748,7 +748,7 @@ class BlockGameApp:
         # 2. VOICEVOXからWAVデータを取得
         try:
             params = {"text": info_text, "speaker": speaker_id}
-            res_query = requests.post(f"{voicevox_url}/audio_query", params=params, timeout=10)
+            res_query = requests.post(f"{voicevox_url}/audio_query", params=params, timeout=50)
             res_query.raise_for_status()
             query_data = res_query.json()
 
@@ -819,7 +819,7 @@ class BlockGameApp:
                 print("Study abroad button clicked. Navigating to study abroad screen.")
 
                 # 1. 現在のBGM音量を保存し、Audioクラスのメソッド経由で音量を下げる
-                original_volume = self.audio.bgm_volume
+                original_volume = self.audio.set_bgm_volume(volume=1.0)
                 lowered_volume = 0.02
                 print(f"BGMの音量を下げます (-> {lowered_volume})")
                 self.audio.set_bgm_volume(lowered_volume) # ★★★ Audioクラスのメソッドを使用 ★★★
