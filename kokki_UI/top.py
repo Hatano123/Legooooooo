@@ -283,7 +283,7 @@ class BlockGameApp:
         self.canvas.create_rectangle(study_abroad_btn_x1, study_abroad_btn_y1, study_abroad_btn_x2, study_abroad_btn_y2,
                                      fill="purple", outline="black", tags="study_abroad_button")
         self.canvas.create_text((study_abroad_btn_x1 + study_abroad_btn_x2) // 2, (study_abroad_btn_y1 + study_abroad_btn_y2) // 2,
-                                text="留学", font=font_subject, fill="white", tags="study_abroad_button")
+                                text="海外", font=font_subject, fill="white", tags="study_abroad_button")
         # --- ここまで ---
         
         reset_btn_x1 = 50
