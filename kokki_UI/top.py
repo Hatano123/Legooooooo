@@ -828,9 +828,9 @@ class BlockGameApp:
                     # 動画ファイルをランダムに選択
                     rand_ryugaku = random.randint(1,3)
                     if rand_ryugaku == 1:
-                        video_path_for_thread = r'.\movie\ryugaku1.mp4'
+                        video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     elif rand_ryugaku == 2:
-                        video_path_for_thread = r'.\movie\ryugaku2.mp4'
+                        video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     else:
                         video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     
