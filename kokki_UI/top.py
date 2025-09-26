@@ -34,6 +34,7 @@ class BlockGameApp:
             messagebox.showerror("Audio Error", f"音声の初期化に失敗しました: {e}")
         self.audio = Audio()
         self.preview_paste_info = {'x': 0, 'y': 0, 'w': 0, 'h': 0} # プレビュー描画オフセットと実サイズ
+        self.narration_sound = None
 
         # --- Configuration ---
         self.flag_map = {
@@ -166,6 +167,10 @@ class BlockGameApp:
             self.bg_tk = None
 
     def draw_main_screen(self):
+        # もしナレーションが再生中なら停止する
+        if hasattr(self, 'narration_sound') and self.narration_sound and self.narration_sound.get_num_channels() > 0:
+            self.narration_sound.stop()
+
         self.canvas.delete("all")
         self.current_screen = "main"
         # カメラ関連の表示オブジェクトをリセット
@@ -303,6 +308,10 @@ class BlockGameApp:
 
 
     def draw_next_screen(self):
+        # もしナレーションが再生中なら停止する
+        if hasattr(self, 'narration_sound') and self.narration_sound and self.narration_sound.get_num_channels() > 0:
+            self.narration_sound.stop()
+
         self.canvas.delete("all")
         self.current_screen = "next"
         # カメラ関連の表示オブジェクトをリセット
@@ -428,6 +437,9 @@ class BlockGameApp:
         self.audio.play_voice("audio/voiceset/make/make_sample.wav")
 
     def draw_explanation_screen(self):
+        # もしナレーションが再生中なら停止する
+        if hasattr(self, 'narration_sound') and self.narration_sound and self.narration_sound.get_num_channels() > 0:
+            self.narration_sound.stop()
         self.canvas.delete("all")
         self.current_screen = "explanation"
         self.explanation_detection_count = 0  # カウントをリセット
@@ -491,6 +503,9 @@ class BlockGameApp:
 
 
     def draw_result_screen(self):
+        # もしナレーションが再生中なら停止する
+        if hasattr(self, 'narration_sound') and self.narration_sound and self.narration_sound.get_num_channels() > 0:
+            self.narration_sound.stop()
         """検知成功後に表示する結果画面を描画する"""
         self.canvas.delete("all")
         self.current_screen = "result"
@@ -549,6 +564,9 @@ class BlockGameApp:
         self.canvas.after(300, lambda: self.audio.play_voice(f"audio/voiceset/get/get_{flag_name}.wav"))
 
     def detail_screen(self):
+        # もしナレーションが再生中なら停止する
+        if hasattr(self, 'narration_sound') and self.narration_sound and self.narration_sound.get_num_channels() > 0:
+            self.narration_sound.stop()
         # 国のデータ（画像ファイル・説明文）
         countries = {
             "Japan":[
@@ -776,10 +794,14 @@ class BlockGameApp:
         """
         print("Playing narration using Pygame on main thread...")
         try:
-            # メモリ上のWAVデータから直接Soundオブジェクトを作成
-            narration_sound = pygame.mixer.Sound(io.BytesIO(wav_data))
+            # もし前のナレーションが再生中なら停止する
+            if self.narration_sound and self.narration_sound.get_num_channels() > 0:
+                self.narration_sound.stop()
+
+            # メモリ上のWAVデータから直接Soundオブジェクトを作成し、インスタンス変数に格納
+            self.narration_sound = pygame.mixer.Sound(io.BytesIO(wav_data))
             # BGMとは別のチャンネルで再生
-            narration_sound.play()
+            self.narration_sound.play()
         except Exception as e:
             print(f"Pygameでのナレーション再生中にエラー: {e}")
 

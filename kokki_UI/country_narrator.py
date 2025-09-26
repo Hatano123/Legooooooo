@@ -11,8 +11,8 @@ def narrate_country_info(country_name, api_key):
     
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        prompt = f"{country_name}について、VOICEVOXのキャラクターが読み上げることを想定して、面白い豆知識を交えながら紹介してください。最初の挨拶は必要ありません。文字数は100字以内でお願いします。"
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"{country_name}について、親しみやすい口調で、面白い豆知識を交えながら紹介してください。最初の挨拶は無し。文字数は100字以内。"
         
         print(f"「{country_name}」についてAIが文章を生成中です...")
         response = model.generate_content(prompt)
