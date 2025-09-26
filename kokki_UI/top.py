@@ -723,13 +723,7 @@ class BlockGameApp:
         self.audio.stop_bgm()
         self.audio.play_bgm(f"audio/bgmset/{flag_name}.mp3")
 
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # 中越のPC内の環境変数
-
-        if not GEMINI_API_KEY:
-            print("エラー: 環境変数 'GEMINI_API_KEY' が設定されていません。")
-            # ここでエラーメッセージを画面に表示するなどの処理を追加するとより親切です
-            return # APIキーがない場合は処理を中断
-
+        GEMINI_API_KEY = "AIzaSyCBapA6ViIAj6xc9Yau4zf294PBK1_bi7I" # ★ここにAPIキーを設定してください
         VOICEVOX_URL = "http://127.0.0.1:50021"
         SPEAKER_ID = 3 
 
@@ -834,9 +828,9 @@ class BlockGameApp:
                     # 動画ファイルをランダムに選択
                     rand_ryugaku = random.randint(1,3)
                     if rand_ryugaku == 1:
-                        video_path_for_thread = r'.\movie\ryugaku1.mp4'
+                        video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     elif rand_ryugaku == 2:
-                        video_path_for_thread = r'.\movie\ryugaku2.mp4'
+                        video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     else:
                         video_path_for_thread = r'.\movie\ryugaku3.mp4'
                     

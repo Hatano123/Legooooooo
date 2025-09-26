@@ -1,5 +1,4 @@
 import google.generativeai as genai
-from google.api_core import exceptions
 
 def narrate_country_info(country_name, api_key):
     """
@@ -22,13 +21,6 @@ def narrate_country_info(country_name, api_key):
         cleaned_text = response.text.replace('\n', ' ').replace('\r', '').strip()
         return cleaned_text
 
-    # 具体的なエラーごとに対処を追加
-    except exceptions.NotFound as e:
-        print(f"モデルが見つかりませんでした。モデル名を確認してください: {e}")
-        return None
-    except exceptions.PermissionDenied as e:
-        print(f"APIキーが無効か、APIが有効になっていません。キーとプロジェクト設定を確認してください: {e}")
-        return None
     except Exception as e:
-        print(f"AIからのテキスト生成中に予期せぬエラーが発生しました: {e}")
+        print(f"AIからのテキスト生成中にエラーが発生しました: {e}")
         return None
