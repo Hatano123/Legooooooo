@@ -20,3 +20,6 @@ ffmpegが必要なので少し古めのバージョンを取ってきてくだ�
 
 ffmpeg version 6.0-full_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers
 これなら動きました
+
+### Gemini-APIについて
+セキュリティの観点から、個人のPCの環境変数からAPIを読みだしているため、現状私以外では説明ボイスが流れません。必要な場合はKazu-Nkgsまで連絡ください。
