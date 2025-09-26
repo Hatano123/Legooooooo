@@ -20,3 +20,5 @@ ffmpegが必要なので少し古めのバージョンを取ってきてくだ�
 
 ffmpeg version 6.0-full_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers
 これなら動きました
+
+# 現状AIinブランチで動かします
